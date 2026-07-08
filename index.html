@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>ユメモール 〜理想のショッピングモール経営記〜</title>
+<meta name="theme-color" content="#8e2a6b">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+:root{
+  --accent:#c13584; --accent-d:#8e2a6b; --bg:rgba(15,17,22,.82); --bg2:rgba(24,27,34,.94);
+  --tx:#f2f2f5; --tx2:#a7abb5; --pos:#4cd98b; --neg:#ff6b7a; --radius:14px;
+}
+*{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ width:100%; height:100%; overflow:hidden; overscroll-behavior:none; }
+body{ font-family:"Hiragino Sans","Yu Gothic UI","Yu Gothic",system-ui,sans-serif; background:#0f1116; color:var(--tx); }
+#game{ position:fixed; inset:0; }
+#game canvas{ display:block; }
+
+/* ===== タイトル ===== */
+#title{ position:fixed; inset:0; z-index:100; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+  background:linear-gradient(160deg,#1b0f1e 0%,#3b1240 45%,#8e2a6b 130%); padding:24px; text-align:center; }
+#title .logo{ font-size:15px; letter-spacing:.4em; color:#e9b8d4; }
+#title h1{ font-size:44px; font-weight:800; letter-spacing:.06em;
+  background:linear-gradient(90deg,#ffd9ec,#fff,#ffd9ec); -webkit-background-clip:text; background-clip:text; color:transparent; }
+#title .sub{ color:#d9b3ca; font-size:14px; line-height:1.8; }
+#title button{ width:min(320px,80vw); padding:15px; border:none; border-radius:99px; font-size:16px; font-weight:700; cursor:pointer; }
+#btnNew{ background:#fff; color:var(--accent-d); }
+#btnContinue{ background:rgba(255,255,255,.16); color:#fff; border:1px solid rgba(255,255,255,.45) !important; }
+#btnHelp{ background:transparent; color:#d9b3ca; font-size:13px !important; font-weight:400 !important; }
+
+/* ===== HUD ===== */
+#hud{ position:fixed; inset:0; z-index:10; pointer-events:none; }
+#hud > *{ pointer-events:auto; }
+#hudTop{ position:absolute; top:0; left:0; right:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:calc(env(safe-area-inset-top) + 8px) 10px 8px; background:linear-gradient(180deg,rgba(10,10,14,.72),transparent); }
+.hudbox{ background:var(--bg); border-radius:10px; padding:5px 10px; font-size:12px; display:flex; gap:6px; align-items:center; white-space:nowrap; }
+.hudbox small{ color:var(--tx2); font-size:10px; }
+.hudbox b{ font-size:13px; }
+#hudCash.neg{ color:var(--neg); }
+#hudEvent{ background:linear-gradient(90deg,#d81b60,#8e2a6b); font-weight:700; }
+#speedBtns{ margin-left:auto; display:flex; gap:4px; }
+#speedBtns button, #btnWalk{ background:var(--bg); color:var(--tx); border:1px solid rgba(255,255,255,.14); border-radius:9px; padding:6px 10px; font-size:12px; cursor:pointer; }
+#speedBtns button.on{ background:var(--accent); border-color:var(--accent); font-weight:700; }
+#btnWalk{ font-weight:700; }
+body.walk #btnWalk{ background:var(--accent); border-color:var(--accent); }
+
+#floorBtns{ position:absolute; left:8px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:6px; }
+#floorBtns button{ width:46px; height:40px; background:var(--bg); color:var(--tx); border:1px solid rgba(255,255,255,.14); border-radius:10px; font-size:12px; font-weight:700; cursor:pointer; }
+#floorBtns button.on{ background:var(--accent); border-color:var(--accent); }
+body.walk #floorBtns{ display:none; }
+
+#tabs{ position:absolute; bottom:0; left:0; right:0; display:flex; background:var(--bg2);
+  padding-bottom:env(safe-area-inset-bottom); border-top:1px solid rgba(255,255,255,.08); }
+#tabs button{ flex:1; background:none; border:none; color:var(--tx2); font-size:11px; padding:9px 2px 10px; cursor:pointer; line-height:1.5; }
+#tabs button .ico{ display:block; font-size:17px; }
+#tabs button.on{ color:#fff; }
+body.walk #tabs{ display:none; }
+
+#panel{ position:absolute; bottom:52px; left:0; right:0; max-height:62vh; overflow-y:auto; background:var(--bg2);
+  border-radius:18px 18px 0 0; padding:14px 14px calc(env(safe-area-inset-bottom) + 14px); }
+#panel h3{ font-size:15px; margin-bottom:10px; }
+.fhead{ font-size:12px; color:var(--tx2); margin:14px 0 6px; font-weight:700; }
+.fhead small{ font-weight:400; }
+.trow-item{ display:flex; align-items:center; gap:8px; padding:8px 6px; border-bottom:1px solid rgba(255,255,255,.06); font-size:13px; cursor:pointer; }
+.trow-item .nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.trow-item .val{ color:var(--tx2); font-size:12px; }
+.trow-item.vac .val{ color:var(--accent); }
+.chip{ font-size:10px; color:#fff; border-radius:6px; padding:2px 6px; white-space:nowrap; }
+.ownchip{ font-size:10px; background:#b8860b; color:#fff; border-radius:6px; padding:1px 5px; }
+.kpis{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.kpi{ background:rgba(255,255,255,.06); border-radius:10px; padding:8px; }
+.kpi small{ display:block; color:var(--tx2); font-size:10px; margin-bottom:3px; }
+.kpi b{ font-size:14px; }
+.kpi b.neg{ color:var(--neg); } .kpi b.pos{ color:var(--pos); }
+.promo{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.pbtn{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:var(--tx); border-radius:10px; padding:8px 4px; font-size:11px; cursor:pointer; }
+.pbtn small{ display:block; color:var(--tx2); font-size:9px; margin-top:3px; }
+.pbtn.on{ background:var(--accent); border-color:var(--accent); }
+.events{ display:grid; gap:8px; }
+.chart{ display:flex; align-items:flex-end; gap:5px; height:80px; padding:6px 2px; }
+.chart .bar{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:2px; }
+.chart .bar i{ display:block; width:100%; background:var(--pos); border-radius:3px 3px 0 0; }
+.chart .bar i.neg{ background:var(--neg); }
+.chart .bar small{ font-size:9px; color:var(--tx2); }
+.news{ padding:7px 4px; font-size:12.5px; border-bottom:1px solid rgba(255,255,255,.06); line-height:1.6; }
+.news small{ color:var(--tx2); margin-right:6px; }
+.empty{ color:var(--tx2); font-size:12px; padding:10px 4px; line-height:1.7; }
+
+/* ===== モーダル ===== */
+.modal-wrap{ position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.55); padding:16px; }
+.modal{ background:var(--bg2); border-radius:var(--radius); width:min(460px,94vw); max-height:82vh; overflow-y:auto; padding:16px; }
+.modal h3{ font-size:16px; margin-bottom:10px; }
+.modal h3 small{ color:var(--tx2); font-weight:400; font-size:11px; }
+.mclose{ width:100%; margin-top:12px; background:rgba(255,255,255,.1); color:var(--tx); border:none; border-radius:10px; padding:11px; font-size:14px; cursor:pointer; }
+.tcard{ background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:11px; margin-bottom:9px; }
+.tcard.on{ border-color:var(--accent); }
+.tcard.locked{ opacity:.62; }
+.tname{ font-size:14px; font-weight:700; margin-bottom:5px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.trow{ font-size:12px; color:var(--tx2); line-height:1.7; }
+.trow b{ color:var(--tx); }
+.btn{ display:block; width:100%; margin-top:8px; background:var(--accent); color:#fff; border:none; border-radius:9px; padding:9px; font-size:13px; font-weight:700; cursor:pointer; }
+.btn.danger{ background:rgba(255,80,95,.16); color:var(--neg); border:1px solid rgba(255,80,95,.4); }
+.warn{ background:rgba(255,150,60,.12); border-radius:8px; color:#ffb36b; font-size:12px; padding:7px 9px; margin-top:7px; line-height:1.6; }
+.seg{ display:flex; background:rgba(255,255,255,.07); border-radius:10px; padding:3px; margin-bottom:10px; }
+.seg button{ flex:1; background:none; border:none; color:var(--tx2); padding:8px; border-radius:8px; font-size:13px; cursor:pointer; }
+.seg button.on{ background:var(--accent); color:#fff; font-weight:700; }
+.row{ display:flex; justify-content:space-between; font-size:13px; padding:6px 2px; border-bottom:1px solid rgba(255,255,255,.06); }
+.row b.pos{ color:var(--pos); } .row b.neg{ color:var(--neg); }
+.row.total{ border-top:2px solid rgba(255,255,255,.25); font-weight:700; font-size:14px; margin-top:4px; }
+
+/* ===== トースト・歩行 ===== */
+#toasts{ position:fixed; left:10px; bottom:64px; z-index:40; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
+body.walk #toasts{ bottom:100px; }
+.toast{ background:var(--bg2); border-left:3px solid var(--accent); border-radius:8px; padding:8px 12px; font-size:12px; max-width:78vw; opacity:.96; }
+.toast.out{ opacity:0; transition:opacity .4s; }
+#nearLabel{ position:fixed; bottom:calc(env(safe-area-inset-bottom) + 76px); left:50%; transform:translateX(-50%); z-index:30;
+  background:var(--bg2); border-radius:99px; padding:8px 16px; font-size:13px; display:flex; gap:7px; align-items:center; white-space:nowrap; }
+#nearLabel small{ color:var(--tx2); }
+#walkHint{ display:none; position:fixed; bottom:calc(env(safe-area-inset-bottom) + 14px); left:50%; transform:translateX(-50%); z-index:29;
+  color:rgba(255,255,255,.75); font-size:11px; background:rgba(10,10,14,.5); padding:5px 12px; border-radius:99px; white-space:nowrap; }
+body.walk #walkHint{ display:block; }
+#joy{ position:fixed; width:100px; height:100px; border-radius:50%; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.3); z-index:35; pointer-events:none; }
+#joyKnob{ position:absolute; left:30px; top:30px; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.45); }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="title">
+  <div class="logo">MALL MANAGEMENT SIMULATION</div>
+  <h1>ユメモール</h1>
+  <div class="sub">日本のどこかに、あなたのショッピングモールが開業する。<br>テナントを誘致し、賃料を集め、直営店を繁盛させ、<br>日本一のモールを作り上げよう。</div>
+  <button id="btnNew">グランドオープン(新規開始)</button>
+  <button id="btnContinue" style="display:none">つづきから</button>
+  <button id="btnHelp">あそびかた</button>
+</div>
+
+<div id="hud" style="display:none">
+  <div id="hudTop">
+    <div class="hudbox" id="hudDate">—</div>
+    <div class="hudbox"><small>資金</small><b id="hudCash">—</b></div>
+    <div class="hudbox"><small>本日来館</small><b id="hudVis">—</b></div>
+    <div class="hudbox"><small>稼働</small><b id="hudOcc">—</b></div>
+    <div class="hudbox"><small>評判</small><b id="hudRep">—</b></div>
+    <div class="hudbox" id="hudEvent" style="display:none"></div>
+    <div id="speedBtns">
+      <button data-s="0">⏸</button><button data-s="1" class="on">▶</button><button data-s="3">▶▶</button><button data-s="10">▶▶▶</button>
+    </div>
+    <button id="btnWalk">🚶 歩く</button>
+  </div>
+  <div id="floorBtns">
+    <button data-f="0" class="on">外観</button>
+    <button data-f="3">3F</button>
+    <button data-f="2">2F</button>
+    <button data-f="1">1F</button>
+  </div>
+  <div id="panel" style="display:none"><div id="panelBody"></div></div>
+  <div id="tabs">
+    <button data-tab="mall" class="on"><span class="ico">🏬</span>モール</button>
+    <button data-tab="tenants"><span class="ico">🏪</span>テナント</button>
+    <button data-tab="mgmt"><span class="ico">📊</span>経営</button>
+    <button data-tab="news"><span class="ico">📰</span>ニュース</button>
+    <button data-tab="settings"><span class="ico">⚙️</span>設定</button>
+  </div>
+</div>
+
+<div id="walkHint">WASD/左スティック:移動 ドラッグ:視点 Shift:走る</div>
+<div id="nearLabel" style="display:none"></div>
+<div id="toasts"></div>
+
+<div class="modal-wrap" id="unitModal" style="display:none">
+  <div class="modal"><div id="unitBody"></div><button class="mclose" data-close>閉じる</button></div>
+</div>
+<div class="modal-wrap" id="monthModal" style="display:none">
+  <div class="modal"><div id="monthBody"></div><button class="mclose" data-close="resume">OK(営業再開)</button></div>
+</div>
+<div class="modal-wrap" id="helpModal" style="display:none">
+  <div class="modal">
+    <h3>あそびかた</h3>
+    <div class="trow" style="line-height:2">
+      🏬 <b>あなたはショッピングモールの運営会社</b>。収入源は2つ:<br>
+      ① <b>専門店テナントの賃料</b>(最低保証+売上歩合)<br>
+      ② <b>直営店の利益</b>(核店舗ユメスタイル等。来館者がいないと稼げない)<br><br>
+      🏪 フロアボタン(1F〜3F)でフロアを表示し、<b>区画をタップ</b>してテナント誘致や直営出店。空床(シャッター)はモールの魅力を下げる。<br><br>
+      📈 集客力の高いテナント・多彩な業種・シネマ誘致・催事・販促で来館者を増やそう。テナントは売上が悪いと退店してしまう。<br><br>
+      🚶 「歩く」ボタンで自分のモールを一人称で歩き回れる。<br><br>
+      💰 毎月末に決算。共用部管理費と借入返済(120億円)を賃料収入でまかなおう。資金がマイナス2億円になると倒産。<br><br>
+      💳 毎月20日・30日は「ユメ感謝デー」で来館者が増える。
+    </div>
+    <button class="mclose" data-close>閉じる</button>
+  </div>
+</div>
+<div class="modal-wrap" id="goModal" style="display:none">
+  <div class="modal">
+    <h3>💸 経営破綻…</h3>
+    <div class="trow" style="line-height:2">資金がマイナス2億円に達し、ユメモールは銀行管理となりました。<br>設定タブから再挑戦できます。</div>
+    <button class="mclose" data-close>閉じる</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="data.js"></script>
+<script src="sim.js"></script>
+<script src="mall3d.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>

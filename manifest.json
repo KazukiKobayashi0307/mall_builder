@@ -1,0 +1,16 @@
+{
+  "name": "ユメモール 〜理想のショッピングモール経営記〜",
+  "short_name": "ユメモール",
+  "description": "3Dで歩き回れるショッピングモール経営シミュレーション。テナントを誘致し、賃料を集め、日本一のモールを作ろう。",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1b0f1e",
+  "theme_color": "#8e2a6b",
+  "lang": "ja",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
