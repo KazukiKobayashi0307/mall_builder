@@ -126,6 +126,77 @@ const TENANTS = [
   { id:'bamco',    name:'バムコワンダーパーク',   cat:'amuse', size:'L', attract:6, rate:0.10, minRent:260, pull:2.2, facade:'tech', demo:'young_male', desc:'クレーンゲームの森。景品原価との戦い。' },
 ];
 
+// ============ テナント手続き生成(カタログ規模を約500店まで拡張) ============
+// 手作業では非現実的な規模のため、カテゴリごとの語彙テンプレート×決定論的PRNGで大量生成する。
+(function(){
+  function pgHash(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
+  function pgRng(seed){ let a=seed>>>0; return function(){ a|=0; a=(a+0x6D2B79F5)|0; let t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+
+  const NAME_PARTS = {
+    fashion:   { pre:['グローバル','ユナイテッド','コネクト','スタイル','ベーシック','トレンド','シンプル','カジュアル','プレミアム','リアル','デイリー','アーバン','ノーブル','モダン','フレッシュ'], suf:['ウォーク','クローゼット','ワードローブ','スタジオ','ファクトリー','マーケット','ボックス','ラボ','ガレージ','アトリエ','コレクション','ドレッサー'] },
+    variety:   { pre:['くらしの','てまえ','ふらっと','ここちの','ゆとりの','まいにちの','てのひら','すこやか','にっぽんの','わたしの','きせつの','てづくりの'], suf:['雑貨店','マーケット','コレクション','ストア','バザール','ラボ','工房','ギャラリー','くらぶ','ショップ'] },
+    cafe:      { pre:['アロマ','森の','麦の','木もれ日','水辺の','陽だまり','煉瓦','石窯','薫る','丸の内','ベイクド','ハニー'], suf:['珈琲舎','カフェテラス','喫茶室','ドルチェ','ベーカリー','キッチン','パーラー','ラウンジ','工房'] },
+    gourmet:   { pre:['大将の','四季の','旬彩','炭火','鉄板','手打ち','母の味','匠の','古今','花咲','八十八','蔵前'], suf:['食堂','厨房','酒場','キッチン','ダイニング','屋台','亭','茶寮','食卓'] },
+    foodcourt: { pre:['元気','爆盛り','秘伝','本格','特製','ご当地','絶品','熱々','ボリューム','ザ・'], suf:['丼','麺場','屋台','キッチン','食堂','スタンド','コーナー'] },
+    hobby:     { pre:['アニメイト','ホビー','コレクターズ','ゲーマーズ','カルチャー','トイズ','コミック','フィギュア','サブカル'], suf:['ステーション','ワールド','ベース','ギャラリー','パーク','ハウス','ラボ'] },
+    kids:      { pre:['キッズ','ベビー','すくすく','にこにこ','ちびっこ','ぴよぴよ','わんぱく','ことりの'], suf:['ランド','パーク','ガーデン','ハウス','ワールド','ステーション','くらぶ'] },
+    service:   { pre:['クイック','スマート','あんしん','まちの','セーフティ','パーフェクト','フレンドリー','てきぱき'], suf:['サービス','窓口','相談所','ステーション','デスク','プラザ','センター'] },
+    amuse:     { pre:['ワンダー','ドリーム','ファン','ゲームズ','プレイ','スター','ラッキー','ハッピー'], suf:['パーク','アリーナ','ワールド','スクエア','ステーション','ランド'] },
+    gms_food:  { pre:['マルシェ','フレッシュ','旬の'], suf:['市場','フーズ','食品館'] },
+    gms_living:{ pre:['くらし','ホーム','リビング'], suf:['館','プラザ','センター'] },
+  };
+  const FACADE_POOL = {
+    fashion:['glass','bold','boutique'], variety:['glass','bold','boutique','warm'], cafe:['warm','kids'],
+    gourmet:['noren'], foodcourt:['stall'], hobby:['tech','warm','bold'], kids:['kids'],
+    service:['plain','tech'], amuse:['tech','bold'], gms_food:['glass'], gms_living:['glass'],
+  };
+  const DEMO_POOL = ['young','young_female','young_male','family','senior','adult_female','adult_male', null, null];
+  const BASE_STAT = {
+    fashion:{attract:[2,6],rate:[0.08,0.11],rent:[80,220],pull:[0.6,1.8]},
+    variety:{attract:[2,6],rate:[0.08,0.12],rent:[75,210],pull:[0.6,1.7]},
+    cafe:{attract:[2,5],rate:[0.09,0.12],rent:[75,150],pull:[0.6,1.5]},
+    gourmet:{attract:[2,5],rate:[0.09,0.11],rent:[110,190],pull:[0.7,1.6]},
+    foodcourt:{attract:[3,6],rate:[0.10,0.12],rent:[85,130],pull:[0.9,1.9]},
+    hobby:{attract:[2,5],rate:[0.07,0.10],rent:[100,200],pull:[0.6,1.6]},
+    kids:{attract:[2,5],rate:[0.08,0.10],rent:[110,220],pull:[0.7,1.6]},
+    service:{attract:[1,3],rate:[0.09,0.13],rent:[70,140],pull:[0.5,1.1]},
+    amuse:{attract:[3,6],rate:[0.09,0.11],rent:[130,240],pull:[0.8,1.9]},
+    gms_food:{attract:[3,6],rate:[0.09,0.12],rent:[100,200],pull:[0.7,1.5]},
+    gms_living:{attract:[3,6],rate:[0.08,0.11],rent:[90,190],pull:[0.6,1.4]},
+  };
+  const SIZE_ORDER=['S','M','L'], SIZE_W={S:0.46,M:0.34,L:0.20};
+
+  function pickSize(r){ const x=r(); return x<SIZE_W.S?'S':(x<SIZE_W.S+SIZE_W.M?'M':'L'); }
+  function pickFrom(arr,r){ return arr[Math.floor(r()*arr.length)]; }
+  function range(lo,hi,r){ return lo+(hi-lo)*r(); }
+
+  let genCount=0, gi=0;
+  for (const cat in NAME_PARTS){
+    const parts = NAME_PARTS[cat], stat = BASE_STAT[cat], facades = FACADE_POOL[cat];
+    const combos = parts.pre.length*parts.suf.length;
+    const target = (cat==='gms_food'||cat==='gms_living') ? 6 : 45;
+    for (let i=0;i<target;i++){
+      const idx = (gi*97 + i*13) % combos;
+      const pi = Math.floor(idx/parts.suf.length), si = idx%parts.suf.length;
+      const name = parts.pre[pi]+parts.suf[si];
+      const id = 'p_'+cat+'_'+pi+'_'+si+'_'+i;
+      const r = pgRng(pgHash(id));
+      const size = pickSize(r);
+      const sizeMul = size==='S'?0.75:(size==='M'?1.0:1.4);
+      const attract = Math.round(clampNum(range(stat.attract[0],stat.attract[1],r)*(size==='L'?1.15:1),1,9));
+      const rate = +range(stat.rate[0],stat.rate[1],r).toFixed(2);
+      const minRent = Math.round(range(stat.rent[0],stat.rent[1],r)*sizeMul);
+      const pull = +range(stat.pull[0],stat.pull[1],r).toFixed(2);
+      const facade = pickFrom(facades,r);
+      const demo = pickFrom(DEMO_POOL,r);
+      TENANTS.push({ id, name, cat, size, attract, rate, minRent, pull, facade, demo, desc:name+'。'+CATS[cat].label+'業態の専門店。' });
+      genCount++;
+    }
+    gi++;
+  }
+  function clampNum(v,a,b){ return v<a?a:(v>b?b:v); }
+})();
+
 // ============ 直営業態(自社出店) ============
 // gross:粗利率 staff:人件費(万円/月) misc:売上比経費 fit:内装投資(万円)
 const OWN_FORMATS = [

@@ -48,6 +48,18 @@ const M3D = {
   signMat(text,bg,fg,opts){
     return new THREE.MeshBasicMaterial({ map:this.texSign(text,bg,fg,opts) });
   },
+  litMat(hex){
+    const key = 'lit|'+hex;
+    if (!this._matCache) this._matCache={};
+    if (!this._matCache[key]) this._matCache[key] = new THREE.MeshLambertMaterial({color:hex});
+    return this._matCache[key];
+  },
+  basicMat(hex){
+    const key = 'basic|'+hex;
+    if (!this._matCache) this._matCache={};
+    if (!this._matCache[key]) this._matCache[key] = new THREE.MeshBasicMaterial({color:hex});
+    return this._matCache[key];
+  },
   floorMat(bg, line, repX, repY){
     const key = 'floor|'+bg+'|'+line;
     let tex = this.texCache[key];
@@ -219,6 +231,27 @@ const M3D = {
           bm.makeTranslation(x+3, y+1.25, -2.9); bushes.setMatrixAt(i,bm);
         });
         g.add(benches); g.add(pots); g.add(bushes);
+        // ゴミ箱ペア(可燃/資源)
+        const binPts=benchPts.filter((_,i)=>i%2===0);
+        if (binPts.length){
+          const binsA=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.22,0.2,0.62,10), new THREE.MeshLambertMaterial({color:0x3a6b4a}), binPts.length);
+          const binsB=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.22,0.2,0.62,10), new THREE.MeshLambertMaterial({color:0x3a5a8a}), binPts.length);
+          binPts.forEach((x,i)=>{ bm.makeTranslation(x-1.6,y+0.31,2.9); binsA.setMatrixAt(i,bm); bm.makeTranslation(x-1.15,y+0.31,2.9); binsB.setMatrixAt(i,bm); });
+          g.add(binsA); g.add(binsB);
+        }
+      }
+      // 案内板(フロア中央付近に1〜2箇所、通路端に寄せて動線を塞がない位置)
+      const kioskXs = f===1? [-40,50] : [-55,35];
+      for (const kx of kioskXs){
+        this.box(0.9,1.5,0.5, M.dark, kx, y+0.75, -3.5, g);
+        this.plane(0.8,1.3, this.signMat((f)+'F MAP','#f5f2ea','#2a2016',{fs:44}), kx, y+1.5, -3.24, 0, g);
+        this.plane(0.8,1.3, this.signMat((f)+'F MAP','#f5f2ea','#2a2016',{fs:44}), kx, y+1.5, -3.76, Math.PI, g);
+      }
+      // 天井の案内バナー(業種ウェイファインディング)
+      const bannerTexts = ['◀ ファッション  レストラン ▶','◀ 雑貨・生活  カフェ ▶','◀ ホビー  サービス ▶'];
+      for (let i=0;i<3;i++){
+        const bx = -66 + i*66;
+        this.plane(9,0.85, this.signMat(bannerTexts[i%bannerTexts.length], '#ffffff', '#5a4a3a', {fs:34,border:'#c9c2ae'}), bx, y+FH-1.0, 0, 0, g);
       }
     }
 
@@ -257,23 +290,54 @@ const M3D = {
     const banner2 = this.plane(16,2.2, this.signMat('YUME MALL セントラルコート','#8e2a6b','#ffffff',{fs:46}), 0, 15.6, -0.01, Math.PI, this.gFloors[3]);
     this.eventBanner2 = banner2;
 
-    // ===== フードコート(3F東) テーブル(インスタンス) =====
+    // ===== フードコート(3F東) =====
     const g3=this.gFloors[3];
-    { const tPos=[];
-      for (let x=46; x<=88; x+=6) for (const zz of [-2,2]) tPos.push([x,zz]);
-      const tm=new THREE.Matrix4();
-      const tops=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.75,0.75,0.08,12), this.MAT.white, tPos.length);
-      const legs=new THREE.InstancedMesh(new THREE.BoxGeometry(0.12,0.78,0.12), this.MAT.dark, tPos.length);
-      const stools=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.26,0.26,0.45,8), this.MAT.wood, tPos.length*4);
+    // 専用床(タイル柄を変えてゾーンを可視化)
+    this.box(46,0.42,8, this.floorMat('#f2e6cf','#d9c49a',12,2), 65, 12-0.19, 0, g3);
+    this.plane(20,2.4, this.signMat('FOOD COURT フードコート','#c0392b','#ffffff',{fs:44,w:768,h:100}), 65, 12+5.35, 0, 0, g3);
+    { const tm=new THREE.Matrix4();
+      // 丸テーブル+スツール4脚
+      const roundPos=[]; for (let x=46; x<=88; x+=8) roundPos.push([x,-2.4]);
+      const tops=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.72,0.72,0.08,12), this.MAT.white, roundPos.length);
+      const legs=new THREE.InstancedMesh(new THREE.BoxGeometry(0.12,0.78,0.12), this.MAT.dark, roundPos.length);
+      const stools=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.25,0.25,0.45,8), this.MAT.wood, roundPos.length*4);
       let si=0;
-      tPos.forEach(([x,zz],i)=>{
+      roundPos.forEach(([x,zz],i)=>{
         tm.makeTranslation(x, 12.78, zz); tops.setMatrixAt(i,tm);
         tm.makeTranslation(x, 12.39, zz); legs.setMatrixAt(i,tm);
         for (const [dx,dz] of [[-1,0],[1,0],[0,-1],[0,1]]){
-          tm.makeTranslation(x+dx*1.1, 12.43, zz+dz*1.1); stools.setMatrixAt(si++,tm);
+          tm.makeTranslation(x+dx*1.05, 12.43, zz+dz*1.05); stools.setMatrixAt(si++,tm);
         }
       });
       g3.add(tops); g3.add(legs); g3.add(stools);
+      // ファミリー向け長方形テーブル+ベンチ2列
+      const rectPos=[]; for (let x=50; x<=84; x+=10) rectPos.push([x,2.4]);
+      const rTops=new THREE.InstancedMesh(new THREE.BoxGeometry(1.7,0.08,0.9), this.MAT.white, rectPos.length);
+      const rLegs=new THREE.InstancedMesh(new THREE.BoxGeometry(0.1,0.75,0.1), this.MAT.dark, rectPos.length*2);
+      const rBench=new THREE.InstancedMesh(new THREE.BoxGeometry(1.7,0.4,0.32), this.MAT.wood, rectPos.length*2);
+      let rli=0, rbi=0;
+      rectPos.forEach(([x,zz],i)=>{
+        tm.makeTranslation(x, 12.76, zz); rTops.setMatrixAt(i,tm);
+        for (const dx of [-0.7,0.7]){ tm.makeTranslation(x+dx, 12.35, zz); rLegs.setMatrixAt(rli++,tm); }
+        for (const dz of [-0.62,0.62]){ tm.makeTranslation(x, 12.42, zz+dz); rBench.setMatrixAt(rbi++,tm); }
+      });
+      g3.add(rTops); g3.add(rLegs); g3.add(rBench);
+      // ペンダント照明(天井から吊り下げ)
+      const pendPos=[]; for (let x=48; x<=86; x+=10) for (const zz of [-2.4,2.4]) pendPos.push([x,zz]);
+      const cords=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012,0.012,1.6,4), this.MAT.dark, pendPos.length);
+      const shades=new THREE.InstancedMesh(new THREE.ConeGeometry(0.24,0.28,10), new THREE.MeshLambertMaterial({color:0xc9a24a}), pendPos.length);
+      pendPos.forEach(([x,zz],i)=>{
+        tm.makeTranslation(x, 17.0, zz); cords.setMatrixAt(i,tm);
+        tm.makeTranslation(x, 16.15, zz); shades.setMatrixAt(i,tm);
+      });
+      g3.add(cords); g3.add(shades);
+      // 中央の緑地アイランド
+      const planterM = new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.2,0.5,16), this.MAT.white);
+      planterM.position.set(65,12.25,0); g3.add(planterM);
+      for (let i=0;i<3;i++){
+        const bush=new THREE.Mesh(new THREE.SphereGeometry(0.5-i*0.08,10,8), new THREE.MeshLambertMaterial({color:0x4e7d43}));
+        bush.position.set(65+(i-1)*0.5, 12.75+i*0.15, (i-1)*0.3); g3.add(bush);
+      }
     }
 
     // ===== 外壁(階層別・カットアウェイ対応) =====
@@ -474,12 +538,44 @@ const M3D = {
     this.box(w, 3.6, 0.08, M.glass, u.x0+0.35+w/2, y+1.8, front+dirn*0.04, g);
     this.box(w, 3.6, 0.08, M.glass, u.x1-0.35-w/2, y+1.8, front+dirn*0.04, g);
   },
-  storeInterior(ctx, shelfLerp){
-    const { u,g,y,cx,front,dirn,faceRy,col,M } = ctx;
-    const inMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(col).lerp(new THREE.Color(0xffffff), shelfLerp!=null?shelfLerp:0.72) });
-    this.plane(u.w-1, 3.2, new THREE.MeshBasicMaterial({ color:new THREE.Color(col).lerp(new THREE.Color(0xffffff),0.35) }), cx, y+2.4, front+dirn*12.5, faceRy+Math.PI, g);
-    this.box(u.w*0.55, 1.25, 0.9, inMat, cx, y+0.63, front+dirn*4, g);
-    this.box(u.w*0.55, 1.25, 0.9, inMat, cx, y+0.63, front+dirn*7.5, g);
+  storeInterior(ctx, shelfLerp, kind){
+    const { u,g,y,cx,front,dirn,faceRy,col,accent,M } = ctx;
+    const lerpAmt = shelfLerp!=null?shelfLerp:0.72;
+    const inMatHex = '#'+new THREE.Color(col).lerp(new THREE.Color(0xffffff), lerpAmt).getHexString();
+    const inMat = this.litMat(inMatHex);
+    const accMat = this.litMat(accent||col);
+    const backHex = '#'+new THREE.Color(col).lerp(new THREE.Color(0xffffff),0.35).getHexString();
+    this.plane(u.w-1, 3.2, this.basicMat(backHex), cx, y+2.4, front+dirn*12.5, faceRy+Math.PI, g);
+    if (kind==='rack'){ // 洋服ラック
+      for (const off of [-0.22,0.22]){
+        const rx=cx+u.w*off;
+        this.box(1.5,0.05,0.34, M.dark, rx, y+1.55, front+dirn*5.6, g);
+        for (let i=-1;i<=1;i++) this.box(0.24,0.5,0.16, accMat, rx+i*0.42, y+1.15, front+dirn*5.6, g);
+      }
+    } else if (kind==='gondola'){ // 陳列棚
+      for (let row=0; row<2; row++){
+        const rz=front+dirn*(4.4+row*3.0);
+        this.box(u.w*0.6, 1.35, 0.55, inMat, cx, y+0.7, rz, g);
+        for (let i=0;i<3;i++) this.box(0.42,0.2,0.5, accMat, cx-u.w*0.2+i*u.w*0.2, y+1.32, rz, g);
+      }
+    } else if (kind==='case'){ // ショーケース(ベーカリー等)
+      this.box(u.w*0.6, 1.0, 0.7, M.glass, cx, y+0.55, front+dirn*4.2, g);
+      this.box(u.w*0.6, 0.08, 0.7, inMat, cx, y+0.16, front+dirn*4.2, g);
+      for (let i=0;i<4;i++){
+        const bun=new THREE.Mesh(new THREE.SphereGeometry(0.13,8,6), accMat);
+        bun.position.set(cx-u.w*0.2+i*u.w*0.14, y+0.37, front+dirn*4.2); bun.scale.set(1,0.6,1); g.add(bun);
+      }
+    } else if (kind==='cube'){ // カラフルキューブ什器
+      for (let i=0;i<3;i++){
+        this.box(0.7,0.7,0.6, i%2? accMat: inMat, u.x0+0.85+i*(u.w-1.7)/2, y+0.4, front+dirn*4.6, g);
+      }
+    } else if (kind==='counter'){
+      this.box(u.w*0.5, 1.0, 0.55, inMat, cx, y+0.5, front+dirn*2.7, g);
+      this.box(u.w*0.5, 0.06, 0.55, accMat, cx, y+1.02, front+dirn*2.7, g);
+    } else {
+      this.box(u.w*0.55, 1.25, 0.9, inMat, cx, y+0.63, front+dirn*4, g);
+      this.box(u.w*0.55, 1.25, 0.9, inMat, cx, y+0.63, front+dirn*7.5, g);
+    }
   },
   storeBladeSign(ctx, bg, fg){
     const { u,g,y,cx,front,dirn,t } = ctx;
@@ -494,44 +590,40 @@ const M3D = {
     glass(ctx){
       const { u,g,y,cx,front,dirn,faceRy,col,accent,t,M } = ctx;
       this.plane(u.w-0.7, 1.15, this.signMat(t.name, col, '#ffffff', {fs:56}), cx, y+4.7, front+dirn*0.03, faceRy, g);
-      this.box(u.w-0.4, 0.14, 0.3, new THREE.MeshLambertMaterial({color:accent}), cx, y+4.05, front+dirn*0.1, g);
+      this.box(u.w-0.4, 0.14, 0.3, this.litMat(accent), cx, y+4.05, front+dirn*0.1, g);
       this.box(u.w-0.5, 3.9, 0.06, M.glass, cx, y+1.95, front+dirn*0.06, g);
-      this.box(0.12, 3.9, 0.12, new THREE.MeshLambertMaterial({color:accent}), u.x0+0.3, y+1.95, front+dirn*0.08, g);
-      this.box(0.12, 3.9, 0.12, new THREE.MeshLambertMaterial({color:accent}), u.x1-0.3, y+1.95, front+dirn*0.08, g);
-      this.storeInterior(ctx, 0.72);
+      this.box(0.12, 3.9, 0.12, this.litMat(accent), u.x0+0.3, y+1.95, front+dirn*0.08, g);
+      this.box(0.12, 3.9, 0.12, this.litMat(accent), u.x1-0.3, y+1.95, front+dirn*0.08, g);
+      this.storeInterior(ctx, 0.72, 'gondola');
     },
     // 元気カラーブロック(ディスカウント・スポーツ・家電)
     bold(ctx){
       const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
-      const bandMat = new THREE.MeshLambertMaterial({color:accent});
-      this.box(u.w-0.3, 1.5, 0.28, bandMat, cx, y+3.95, front+dirn*0.08, g);
+      this.box(u.w-0.3, 1.5, 0.28, this.litMat(accent), cx, y+3.95, front+dirn*0.08, g);
       this.plane(u.w-0.8, 1.05, this.signMat(t.name, accent, '#ffffff', {fs:54}), cx, y+3.95, front+dirn*0.23, faceRy, g);
       this.box(u.w*0.5, 0.35, 0.3, M.white, u.x0+u.w*0.27, y+3.15, front+dirn*0.1, g).rotation.z = dirn*0.12;
       this.storeGlass(ctx);
-      this.storeInterior(ctx, 0.65);
+      this.storeInterior(ctx, 0.65, 'gondola');
     },
     // 上品なブティック(レディース・雑貨)
     boutique(ctx){
       const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
-      const trim = new THREE.MeshLambertMaterial({color:accent});
-      this.box(u.w-0.6, 0.1, 0.22, trim, cx, y+4.15, front+dirn*0.08, g);
-      this.box(u.w-0.6, 0.1, 0.22, trim, cx, y+1.35, front+dirn*0.08, g);
+      this.box(u.w-0.6, 0.1, 0.22, this.litMat(accent), cx, y+4.15, front+dirn*0.08, g);
+      this.box(u.w-0.6, 0.1, 0.22, this.litMat(accent), cx, y+1.35, front+dirn*0.08, g);
       this.plane(u.w-1.2, 0.9, this.signMat(t.name, '#f7f3ea', accent, {fs:44}), cx, y+4.55, front+dirn*0.03, faceRy, g);
       this.box(u.w-0.5, 3.9, 0.06, M.glass, cx, y+1.95, front+dirn*0.06, g);
       // マネキン(トルソー)
-      const mm = new THREE.MeshLambertMaterial({color:0xe8e0d0});
-      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.4,1.0,10), mm);
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.4,1.0,10), this.litMat(0xe8e0d0));
       torso.position.set(cx-u.w*0.18, y+1.35, front+dirn*3.5); g.add(torso);
       const tstand = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.06,0.85,8), M.dark);
       tstand.position.set(cx-u.w*0.18, y+0.42, front+dirn*3.5); g.add(tstand);
       this.storeBladeSign(ctx, '#f7f3ea', accent);
-      this.storeInterior(ctx, 0.8);
+      this.storeInterior(ctx, 0.8, 'rack');
     },
     // 木目の温かいカフェ・パン屋
     warm(ctx){
       const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
-      const wood = new THREE.MeshLambertMaterial({color:accent});
-      const awn = this.box(u.w-0.2, 0.12, 1.4, wood, cx, y+3.55, front+dirn*0.8, g);
+      const awn = this.box(u.w-0.2, 0.12, 1.4, this.litMat(accent), cx, y+3.55, front+dirn*0.8, g);
       awn.rotation.x = dirn>0 ? -0.28 : 0.28;
       this.plane(u.w-1.2, 0.85, this.signMat(t.name, accent, '#fff7ea', {fs:42}), cx, y+4.05, front+dirn*0.05, faceRy, g);
       this.storeGlass(ctx, u.w*0.34);
@@ -540,21 +632,21 @@ const M3D = {
       tb.position.set(cx+u.w*0.22, y+0.75, front+dirn*2.6); g.add(tb);
       this.box(0.06,0.7,0.06, M.dark, cx+u.w*0.22, y+0.4, front+dirn*2.6, g);
       this.storeBladeSign(ctx, accent, '#fff7ea');
-      this.storeInterior(ctx, 0.68);
+      this.storeInterior(ctx, 0.68, 'case');
     },
     // カラフル・キッズ向け
     kids(ctx){
       const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
-      const stripeCols = [accent, '#ffffff'];
+      const stripeMats = [this.litMat(accent), M.white];
       for (let i=0;i<Math.floor((u.w-0.4)/1.0);i++){
         const sx = u.x0+0.3+i*1.0+0.5;
-        this.box(0.9, 1.3, 0.22, new THREE.MeshLambertMaterial({color:stripeCols[i%2]}), sx, y+3.85, front+dirn*0.08, g);
+        this.box(0.9, 1.3, 0.22, stripeMats[i%2], sx, y+3.85, front+dirn*0.08, g);
       }
       this.plane(u.w-1, 1.0, this.signMat(t.name, '#ffffff', accent, {fs:50,border:accent}), cx, y+4.55, front+dirn*0.15, faceRy, g);
-      const blob = new THREE.Mesh(new THREE.SphereGeometry(0.5,12,10), new THREE.MeshLambertMaterial({color:accent}));
+      const blob = new THREE.Mesh(new THREE.SphereGeometry(0.5,12,10), this.litMat(accent));
       blob.position.set(u.x0+0.7, y+0.5, front+dirn*3.2); blob.scale.set(1,0.85,1); g.add(blob);
       this.storeGlass(ctx);
-      this.storeInterior(ctx, 0.75);
+      this.storeInterior(ctx, 0.75, 'cube');
     },
     // 暖簾のかかる和食・中華レストラン
     noren(ctx){
@@ -567,28 +659,26 @@ const M3D = {
       this.plane(halfW, 1.5, norenMat, cx+halfW/2+0.15, y+3.05, front+dirn*0.5, faceRy, g);
       this.box(u.w-0.6, 0.08, 0.08, M.dark, cx, y+3.78, front+dirn*0.5, g);
       // ちょうちん
-      const lant = new THREE.Mesh(new THREE.SphereGeometry(0.28,10,8), new THREE.MeshLambertMaterial({color:'#c0392b'}));
+      const lant = new THREE.Mesh(new THREE.SphereGeometry(0.28,10,8), this.litMat(0xc0392b));
       lant.scale.set(1,1.3,1); lant.position.set(u.x1-0.7, y+3.3, front+dirn*0.7); g.add(lant);
       this.storeGlass(ctx, u.w*0.22);
-      this.storeInterior(ctx, 0.55);
+      this.storeInterior(ctx, 0.55, 'counter');
     },
     // フードコートの開放型店舗
     stall(ctx){
       const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
-      const counterMat = new THREE.MeshLambertMaterial({color:accent});
-      this.box(u.w-0.5, 1.1, 0.7, counterMat, cx, y+0.55, front+dirn*3.3, g);
+      this.box(u.w-0.5, 1.1, 0.7, this.litMat(accent), cx, y+0.55, front+dirn*3.3, g);
       this.box(u.w-0.5, 0.08, 0.7, M.white, cx, y+1.11, front+dirn*3.3, g);
       this.plane(u.w-1, 1.0, this.signMat(t.name, accent, '#ffffff', {fs:48}), cx, y+4.15, front+dirn*0.05, faceRy, g);
       this.box(u.w-0.6, 0.1, 0.1, M.dark, cx, y+3.6, front+dirn*0.4, g);
       const lp = this.plane(u.w-1.4, 0.4, M.lightP, cx, y+3.9, front+dirn*1.6, 0, g); lp.rotation.x = Math.PI/2;
-      this.storeInterior(ctx, 0.6);
+      this.storeInterior(ctx, 0.6, 'counter');
     },
     // ダーク×ネオン(ホビー・ゲーム・携帯)
     tech(ctx){
       const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
-      const darkMat = new THREE.MeshLambertMaterial({color:0x1c1c22});
-      this.box(u.w-0.4, 1.3, 0.2, darkMat, cx, y+4.1, front+dirn*0.06, g);
-      const neonMat = new THREE.MeshBasicMaterial({color:accent});
+      this.box(u.w-0.4, 1.3, 0.2, this.litMat(0x1c1c22), cx, y+4.1, front+dirn*0.06, g);
+      const neonMat = this.basicMat(accent);
       this.box(u.w-0.4, 0.06, 0.14, neonMat, cx, y+3.5, front+dirn*0.12, g);
       this.box(u.w-0.4, 0.06, 0.14, neonMat, cx, y+4.7, front+dirn*0.12, g);
       this.plane(u.w-1, 0.9, this.signMat(t.name, '#1c1c22', accent, {fs:46}), cx, y+4.1, front+dirn*0.13, faceRy, g);
@@ -596,18 +686,18 @@ const M3D = {
       // 店内の画面っぽい光
       for (let i=0;i<3;i++){
         const sx = u.x0 + u.w*(0.22+i*0.28);
-        this.plane(1.0, 0.65, new THREE.MeshBasicMaterial({color:accent}), sx, y+1.9, front+dirn*11, faceRy+Math.PI, g);
+        this.plane(1.0, 0.65, neonMat, sx, y+1.9, front+dirn*11, faceRy+Math.PI, g);
       }
       this.storeBladeSign(ctx, '#1c1c22', accent);
-      this.storeInterior(ctx, 0.4);
+      this.storeInterior(ctx, 0.4, 'gondola');
     },
     // シンプル・サービス業態
     plain(ctx){
       const { u,g,y,cx,front,dirn,faceRy,col,accent,t,M } = ctx;
       this.plane(u.w-0.8, 0.95, this.signMat(t.name, col, '#ffffff', {fs:50}), cx, y+4.45, front+dirn*0.03, faceRy, g);
       this.box(u.w-0.5, 2.6, 0.06, M.glass, cx, y+1.4, front+dirn*0.06, g);
-      this.box(u.w-0.6, 1.1, 0.7, new THREE.MeshLambertMaterial({color:accent}), cx, y+0.55, front+dirn*2.2, g);
-      this.storeInterior(ctx, 0.78);
+      this.box(u.w-0.6, 1.1, 0.7, this.litMat(accent), cx, y+0.55, front+dirn*2.2, g);
+      this.storeInterior(ctx, 0.78, 'counter');
     },
   },
 
@@ -858,19 +948,37 @@ const M3D = {
 
   // ---------- NPC ----------
   initNPC(){
+    const faceCv=document.createElement('canvas'); faceCv.width=64; faceCv.height=64;
+    const fc=faceCv.getContext('2d');
+    fc.fillStyle='#1c1c1c';
+    fc.beginPath(); fc.ellipse(21,28,4.2,5.2,0,0,Math.PI*2); fc.fill();
+    fc.beginPath(); fc.ellipse(43,28,4.2,5.2,0,0,Math.PI*2); fc.fill();
+    fc.fillStyle='#c0392b'; fc.globalAlpha=0.55;
+    fc.beginPath(); fc.ellipse(14,38,4.5,3,0,0,Math.PI*2); fc.fill();
+    fc.beginPath(); fc.ellipse(50,38,4.5,3,0,0,Math.PI*2); fc.fill();
+    fc.globalAlpha=1;
+    fc.strokeStyle='#1c1c1c'; fc.lineWidth=2.4; fc.lineCap='round';
+    fc.beginPath(); fc.arc(32,40,7,0.15*Math.PI,0.85*Math.PI); fc.stroke();
+    const faceTex=new THREE.CanvasTexture(faceCv);
+    this._npcFaceMat = new THREE.MeshBasicMaterial({map:faceTex, transparent:true, depthWrite:false});
     this._npcGeo = {
-      body: new THREE.CylinderGeometry(0.21,0.26,0.95,7),
-      head: new THREE.SphereGeometry(0.155,8,7),
+      torso: new THREE.CylinderGeometry(0.155,0.135,0.44,8),
+      head: new THREE.SphereGeometry(0.155,10,8),
+      face: new THREE.PlaneGeometry(0.26,0.26),
       hairCap: new THREE.SphereGeometry(0.168,9,7,0,Math.PI*2,0,Math.PI*0.62),
       ponytail: new THREE.CylinderGeometry(0.05,0.07,0.4,6),
-      childBody: new THREE.CylinderGeometry(0.14,0.17,0.55,7),
-      childHead: new THREE.SphereGeometry(0.12,8,7),
+      leg: (typeof THREE.CapsuleGeometry==='function') ? new THREE.CapsuleGeometry(0.052,0.34,3,6) : new THREE.CylinderGeometry(0.052,0.045,0.42,6),
+      arm: (typeof THREE.CapsuleGeometry==='function') ? new THREE.CapsuleGeometry(0.042,0.32,3,6) : new THREE.CylinderGeometry(0.042,0.036,0.36,6),
+      childBody: new THREE.CylinderGeometry(0.12,0.105,0.32,7),
+      childHead: new THREE.SphereGeometry(0.12,9,7),
+      childFace: new THREE.PlaneGeometry(0.2,0.2),
+      childLeg: new THREE.CylinderGeometry(0.038,0.033,0.26,6),
     };
     this.npcs=[];
-    for (let i=0;i<44;i++){
+    for (let i=0;i<22;i++){
       const grp=new THREE.Group();
       grp.visible=false; this.scene.add(grp);
-      this.npcs.push({ grp, active:false, f:1, x:0, z:0, y:0, wps:[], wi:0, speed:1.1+Math.random()*0.6, dwell:0, arch:'adult_female' });
+      this.npcs.push({ grp, active:false, f:1, x:0, z:0, y:0, wps:[], wi:0, speed:1.1+Math.random()*0.6, dwell:0, arch:'adult_female', walkPhase:Math.random()*10, limbs:null });
     }
   },
   sampleArchetype(){
@@ -884,24 +992,55 @@ const M3D = {
     const geo = this._npcGeo;
     while (n.grp.children.length) n.grp.remove(n.grp.children[0]);
     const bodyColor = A.palette[Math.floor(Math.random()*A.palette.length)];
+    const legColorHex = '#'+new THREE.Color(bodyColor).lerp(new THREE.Color(0x2a2a2a), 0.55).getHexString();
     const hairColor = A.hair[Math.floor(Math.random()*A.hair.length)];
-    const bodyMat = new THREE.MeshLambertMaterial({color:bodyColor});
-    const skinMat = new THREE.MeshLambertMaterial({color:A.skin});
-    const hairMat = new THREE.MeshLambertMaterial({color:hairColor});
-    const body=new THREE.Mesh(geo.body, bodyMat); body.position.y=0.68; n.grp.add(body);
-    const head=new THREE.Mesh(geo.head, skinMat); head.position.y=1.36; n.grp.add(head);
-    const hair=new THREE.Mesh(geo.hairCap, hairMat); hair.position.y=1.43; hair.rotation.x=Math.PI; n.grp.add(hair);
+    const bodyMat = this.litMat(bodyColor);
+    const skinMat = this.litMat(A.skin);
+    const hairMat = this.litMat(hairColor);
+    const legMat = this.litMat(legColorHex);
+
+    // 脚(股関節ピボット。歩行アニメーション用)
+    const legPivotY = 0.42;
+    const lLeg=new THREE.Group(); lLeg.position.set(-0.085, legPivotY, 0);
+    const lLegM=new THREE.Mesh(geo.leg, legMat); lLegM.position.y=-0.19; lLeg.add(lLegM); n.grp.add(lLeg);
+    const rLeg=new THREE.Group(); rLeg.position.set(0.085, legPivotY, 0);
+    const rLegM=new THREE.Mesh(geo.leg, legMat); rLegM.position.y=-0.19; rLeg.add(rLegM); n.grp.add(rLeg);
+
+    // 胴体
+    const torso=new THREE.Mesh(geo.torso, bodyMat); torso.position.y=legPivotY+0.24; n.grp.add(torso);
+
+    // 腕(肩関節ピボット)
+    const armPivotY = legPivotY+0.42;
+    const lArm=new THREE.Group(); lArm.position.set(-0.185, armPivotY, 0);
+    const lArmM=new THREE.Mesh(geo.arm, skinMat); lArmM.position.y=-0.16; lArm.add(lArmM); n.grp.add(lArm);
+    const rArm=new THREE.Group(); rArm.position.set(0.185, armPivotY, 0);
+    const rArmM=new THREE.Mesh(geo.arm, skinMat); rArmM.position.y=-0.16; rArm.add(rArmM); n.grp.add(rArm);
+
+    // 頭・髪・顔
+    const headY = armPivotY+0.19;
+    const head=new THREE.Mesh(geo.head, skinMat); head.position.y=headY; n.grp.add(head);
+    const hair=new THREE.Mesh(geo.hairCap, hairMat); hair.position.y=headY+0.07; hair.rotation.x=Math.PI; n.grp.add(hair);
+    const face=new THREE.Mesh(geo.face, this._npcFaceMat); face.position.set(0, headY, 0.145); n.grp.add(face);
     if (arch==='young_female' && Math.random()<0.4){
-      const pt=new THREE.Mesh(geo.ponytail, hairMat); pt.position.set(0,1.24,-0.17); pt.rotation.x=0.55; n.grp.add(pt);
+      const pt=new THREE.Mesh(geo.ponytail, hairMat); pt.position.set(0, headY-0.12, -0.17); pt.rotation.x=0.55; n.grp.add(pt);
     }
     n.grp.scale.setScalar(A.height * (0.94+Math.random()*0.12));
+    n.limbs = { lLeg, rLeg, lArm, rArm };
+
     if (arch==='kids_family'){
       const kidPalette = A.palette;
-      const cBody=new THREE.Mesh(geo.childBody, new THREE.MeshLambertMaterial({color:kidPalette[(Math.floor(Math.random()*kidPalette.length)+1)%kidPalette.length]}));
-      cBody.position.set(0.46,0.32,0.12); n.grp.add(cBody);
-      const cHead=new THREE.Mesh(geo.childHead, skinMat); cHead.position.set(0.46,0.72,0.12); n.grp.add(cHead);
-      const cHair=new THREE.Mesh(geo.hairCap, hairMat); cHair.position.set(0.46,0.76,0.12); cHair.rotation.x=Math.PI; cHair.scale.setScalar(0.8); n.grp.add(cHair);
-    }
+      const kidMat = this.litMat(kidPalette[(Math.floor(Math.random()*kidPalette.length)+1)%kidPalette.length]);
+      const kx=0.42, kLegY=0.24;
+      const cGrp = new THREE.Group(); cGrp.position.set(kx, 0, 0.1); n.grp.add(cGrp);
+      const clLeg=new THREE.Group(); clLeg.position.set(-0.06,kLegY,0); const clLegM=new THREE.Mesh(geo.childLeg,legMat); clLegM.position.y=-0.13; clLeg.add(clLegM); cGrp.add(clLeg);
+      const crLeg=new THREE.Group(); crLeg.position.set(0.06,kLegY,0); const crLegM=new THREE.Mesh(geo.childLeg,legMat); crLegM.position.y=-0.13; crLeg.add(crLegM); cGrp.add(crLeg);
+      const cBody=new THREE.Mesh(geo.childBody, kidMat); cBody.position.y=kLegY+0.17; cGrp.add(cBody);
+      const cHeadY=kLegY+0.34;
+      const cHead=new THREE.Mesh(geo.childHead, skinMat); cHead.position.y=cHeadY; cGrp.add(cHead);
+      const cHair=new THREE.Mesh(geo.hairCap, hairMat); cHair.position.y=cHeadY+0.06; cHair.rotation.x=Math.PI; cHair.scale.setScalar(0.82); cGrp.add(cHair);
+      const cFace=new THREE.Mesh(geo.childFace, this._npcFaceMat); cFace.position.set(0,cHeadY,0.115); cGrp.add(cFace);
+      n.childLimbs = { lLeg:clLeg, rLeg:crLeg };
+    } else n.childLimbs = null;
     n.arch = arch;
   },
   laneZ(z){ return z>=0? 3.2 : -3.2; },
@@ -949,10 +1088,11 @@ const M3D = {
     if (!n) return;
     const ents=[{x:8,z:-16,f:1},{x:8,z:16,f:1},{x:97,z:0,f:1}];
     const ent=ents[Math.random()<0.45?0:(Math.random()<0.55?2:1)];
-    n.active=true; n.f=ent.f; n.x=ent.x; n.z=ent.z; n.y=0;
+    n.active=true; n.f=ent.f; n.x=ent.x; n.z=ent.z; n.y=0; n.dwell=0; n.walkPhase=Math.random()*10;
     n.wps=[]; n.wi=0; n._px=ent.x; n._pz=ent.z; n._pf=ent.f;
     const arch = this.sampleArchetype();
     this.buildNpcVisual(n, arch);
+    n.grp.position.set(n.x, n.y, n.z);
     // 訪問先を1〜3店選ぶ(集客力×客層の相性で加重)
     const open=SIM.st.units.filter(u=>u.state==='open'&&u.ten);
     if (!open.length){ n.active=false; return; }
@@ -986,7 +1126,7 @@ const M3D = {
   updateNPC(dt){
     const st=SIM.st;
     const density = Math.min(1.4, st.todayVisitors/16000) * SIM.hourMul();
-    const want=Math.round(6+density*36);
+    const want=Math.round(4+density*20);
     const active=this.npcs.filter(n=>n.active).length;
     if (active<want && Math.random()<0.10) this.spawnNPC();
     for (const n of this.npcs){
@@ -1011,6 +1151,13 @@ const M3D = {
       n.grp.position.set(n.x, n.y, n.z);
       n.grp.rotation.y = Math.atan2(dx,dz);
       n.grp.visible = this.gFloors[Math.min(3,Math.max(1,n.f))].visible;
+      if (sp>0.01){
+        n.walkPhase += dt*sp*4.6;
+        const sw = Math.sin(n.walkPhase)*0.62;
+        const l=n.limbs;
+        if (l){ l.lLeg.rotation.x=sw; l.rLeg.rotation.x=-sw; l.lArm.rotation.x=-sw*0.75; l.rArm.rotation.x=sw*0.75; }
+        if (n.childLimbs){ const sw2=Math.sin(n.walkPhase*1.15)*0.6; n.childLimbs.lLeg.rotation.x=sw2; n.childLimbs.rLeg.rotation.x=-sw2; }
+      }
     }
   },
   setCrowdVisual(){
