@@ -19,6 +19,7 @@ const HOUR_CURVE = [0,0,0,0,0,0,0,0,0, .35,.6,.85,1.0,.95,.8,.72,.8,.92,.88,.7,.
 
 const SIM = {
   st: null,
+  _catNorm: null,
 
   // ---------- 区画生成 ----------
   buildUnits(rng){
@@ -45,7 +46,8 @@ const SIM = {
     return units;
   },
 
-  newGame(){
+  newGame(siteId){
+    const site = SITES.find(s=>s.id===siteId) || SITES[0];
     const rng = mulberry32((Date.now()&0xffffffff)>>>0);
     const units = this.buildUnits(rng);
     // GMS直営を配備
@@ -57,26 +59,29 @@ const SIM = {
     const pool = TENANTS.slice();
     for (let i=pool.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
     const shopUnits = units.filter(u=>u.kind==='shop'||u.kind==='fc');
-    let placed = 0, target = 50;
+    let placed = 0, target = 42;
     for (const t of pool){
       if (placed>=target) break;
       const cands = shopUnits.filter(u=>!u.ten && this.unitFits(u,t));
       if (!cands.length) continue;
       const u = cands[Math.floor(rng()*cands.length)];
-      u.ten = { own:false, tid:t.id, name:t.name, cat:t.cat, attract:t.attract, rate:t.rate, minRent:Math.round(t.minRent*ECON.RENT_CAL*(0.95+rng()*0.1)), pull:t.pull };
+      const minRent = Math.round(t.minRent*ECON.RENT_CAL*(0.95+rng()*0.1));
+      u.ten = { own:false, tid:t.id, name:t.name, cat:t.cat, attract:t.attract, rate:t.rate, minRent, pull:t.pull, demo:t.demo||null, facade:t.facade||'plain', keyMoney: minRent*ECON.KEY_MONEY_MONTHS };
       u.state = 'open';
       placed++;
     }
+    this._catNorm = this.computeCatNorm();
     this.st = {
-      v:1, started:true, day:1, dow:6, Y:2026, M:4, D:18,
-      minutes: 540, speed: 1, cash: ECON.CASH_INIT, loan: ECON.LOAN_INIT,
+      v:2, started:true, day:1, dow:6, Y:2026, M:4, D:18,
+      minutes: 540, speed: 1, cash: site.cashStart, loan: site.loanStart,
+      site, expansionBought:false,
       rep: 2.6, promoLv: 0, weather: 0, event: null,
       units, news: [], todayVisitors: 0, visitorsSoFar: 0,
       acc: this.blankAcc(), lastReport: null, history: [],
       totalDays: 0, gameOver: false,
     };
     this.st.todayVisitors = this.calcVisitors();
-    this.pushNews('🎉 '+MALL_NAME+' グランドオープン!! 3日間はオープン景気で来館者が大幅増加');
+    this.pushNews('🎉 '+MALL_NAME+'('+site.name+') グランドオープン!! 3日間はオープン景気で来館者が大幅増加');
     this.pushNews('核店舗「ユメスタイル」(直営)と専門店'+placed+'店で開業。空き区画にテナントを誘致しよう');
     return this.st;
   },
@@ -106,11 +111,13 @@ const SIM = {
       else if (u.kind!=='cinema' && u.kind!=='ent') vac++;
     }
     A -= vac * ECON.VACANCY_PENALTY;
+    if (this.st.expansionBought) A += ECON.EXPANSION_ATTRACT_BONUS;
     return { A: Math.max(A, 4), vac };
   },
 
   calcVisitors(){
     const st = this.st;
+    const site = st.site;
     const { A } = this.attractTotal();
     let v = ECON.BASE_VISITORS + ECON.ATTRACT_COEF * Math.pow(A, ECON.ATTRACT_POW);
     const dowMul = st.dow===6 ? ECON.SAT_MUL : (st.dow===0 ? ECON.SUN_MUL : 1.0);
@@ -122,7 +129,39 @@ const SIM = {
     v *= ECON.PROMO_LEVELS[st.promoLv].m;
     if (st.event) v *= st.event.mul;
     v *= 0.82 + 0.06*st.rep;
+    // 立地要因: 駅距離・商圏規模・競合
+    const stationMul = clamp(ECON.STATION_MUL_BASE - site.stationWalkMin*ECON.STATION_MUL_PER_MIN, ECON.STATION_MUL_MIN, ECON.STATION_MUL_BASE);
+    v *= stationMul * site.catchmentMul;
+    v *= (1 - site.competitionLevel*ECON.COMPETITION_MUL);
+    // 駐車場キャパによる頭打ち(駅距離が遠いほど車依存が強く、より効く)
+    const carDependency = clamp(0.32 + site.stationWalkMin*0.028, 0.18, 0.95);
+    const parkingCapVisitors = site.parkingCap * ECON.PARKING_PER_SPACE / carDependency;
+    v = Math.min(v, parkingCapVisitors);
     return Math.round(v);
+  },
+
+  // ---------- 客層アーキタイプ ----------
+  computeCatNorm(){
+    const norm = {};
+    for (const c in CATS){
+      let s = 0;
+      for (const a in ARCHETYPES) s += ARCHETYPES[a].shareBase * ARCHETYPES[a].spendMul * (CAT_AFFIN[c][a]||1);
+      norm[c] = s || 1;
+    }
+    return norm;
+  },
+  archShares(){
+    const site = this.st && this.st.site;
+    const skew = (site && site.demoSkew) || {};
+    const raw = {}; let sum = 0;
+    for (const a in ARCHETYPES){ raw[a] = ARCHETYPES[a].shareBase * (skew[a]||1); sum += raw[a]; }
+    for (const a in raw) raw[a] /= sum;
+    return raw;
+  },
+  tenantAppeal(t, a){
+    if (!t.demo) return 1.0;
+    const boosted = DEMOTAG_MAP[t.demo];
+    return (boosted && boosted.includes(a)) ? 1.6 : 0.8;
   },
 
   hourMul(){
@@ -137,15 +176,29 @@ const SIM = {
     const st = this.st;
     const V = st.todayVisitors;
     st.acc.visitors += V; st.acc.days++;
-    // カテゴリ需要(万円)
-    const D = {}; for (const c in CATS) D[c] = V * CATS[c].spend / 10000;
-    // 露出度合計
-    const sumE = {}; for (const c in CATS) sumE[c] = CATS[c].leak;
+    if (!this._catNorm) this._catNorm = this.computeCatNorm();
+    const arch = this.archShares();
+    // カテゴリ×客層の需要プール(万円)
+    const D = {};
+    for (const c in CATS){
+      D[c] = {};
+      for (const a in ARCHETYPES){
+        D[c][a] = V * arch[a] * ARCHETYPES[a].spendMul * (CAT_AFFIN[c][a]||1) / this._catNorm[c] * CATS[c].spend / 10000;
+      }
+    }
+    // 露出度合計(カテゴリ×客層)
+    const sumE = {};
+    for (const c in CATS){ sumE[c] = {}; for (const a in ARCHETYPES) sumE[c][a] = CATS[c].leak; }
     const openUnits = st.units.filter(u=>u.state==='open' && u.ten);
-    for (const u of openUnits){ u._E = this.exposure(u); sumE[u.ten.cat] += u._E; }
-    // 各店売上
     for (const u of openUnits){
-      const sales = D[u.ten.cat] * u._E / sumE[u.ten.cat];
+      const base = this.baseExposure(u);
+      u._app = {};
+      for (const a in ARCHETYPES){ u._app[a] = base * this.tenantAppeal(u.ten, a) + 0.12; sumE[u.ten.cat][a] += u._app[a]; }
+    }
+    // 各店売上(客層ごとの需要を按分して合算)
+    for (const u of openUnits){
+      let sales = 0;
+      for (const a in ARCHETYPES) sales += D[u.ten.cat][a] * u._app[a] / sumE[u.ten.cat][a];
       u.todaySales = sales; u.monthSales += sales;
       if (u.ten.own){
         const profit = sales*u.ten.gross - u.ten.staff/30.4 - sales*u.ten.misc;
@@ -187,21 +240,23 @@ const SIM = {
     return 0;
   },
 
-  exposure(u){
+  baseExposure(u){
     const t = u.ten;
     const dest = (t.cat==='gourmet'||t.cat==='foodcourt'||t.cat==='amuse'||t.cat==='gms_food');
     let floorCoef = dest ? 1.0 : (u.floor===1?1.0:(u.floor===2?0.88:0.78));
     let pos = 1.0;
     if (u.kind!=='gms' && u.kind!=='cinema' && Math.abs((u.x0+u.x1)/2) < 30) pos = 1.08;
-    return t.pull * floorCoef * pos + 0.55; // +0.55=通行量による「ついで買い」ベース
+    return t.pull * floorCoef * pos;
   },
 
   // ---------- 月次決算 ----------
   settleMonth(){
     const st = this.st;
+    const totalCapital = st.site.cashStart + st.site.loanStart;
     const rep = { Y:st.Y, M:st.M, rent:0, fee:0, ownProfit:st.acc.ownProfit, ownSales:st.acc.ownSales,
                   tenantSales:st.acc.tenantSales, visitors:st.acc.visitors, days:st.acc.days,
                   common:ECON.COMMON_COST_MONTH, promo:ECON.PROMO_LEVELS[st.promoLv].c, events:st.acc.events,
+                  tax: totalCapital*ECON.PROPERTY_TAX_Y/12,
                   interest: st.loan*ECON.LOAN_RATE_Y/12, principal: Math.min(ECON.LOAN_PAY_MONTH, st.loan),
                   leaves: [], warns: [] };
     // 賃料徴収 & テナント健康診断
@@ -224,6 +279,7 @@ const SIM = {
       if (u.monthsBad>=3 && Math.random()<0.55){
         rep.leaves.push(u.ten.name+'('+u.floor+'F)');
         this.pushNews('💔 「'+u.ten.name+'」が売上不振のため退店しました('+u.floor+'F)');
+        st.cash -= Math.round((u.ten.keyMoney||0)*ECON.KEY_MONEY_RETURN);
         u.ten=null; u.state='vacant'; u.monthsBad=0; u.sat=70;
       } else if (u.monthsBad===2){
         rep.warns.push(u.ten.name+'('+u.floor+'F)');
@@ -231,7 +287,7 @@ const SIM = {
       u.lastMonthSales = u.monthSales; u.monthSales = 0;
     }
     st.cash += rep.rent + rep.fee;
-    st.cash -= rep.common + rep.promo + rep.interest + rep.principal;
+    st.cash -= rep.common + rep.promo + rep.interest + rep.principal + rep.tax;
     st.loan -= rep.principal;
     // モール評判
     const shops = st.units.filter(u=>u.kind!=='cinema' && u.kind!=='ent');
@@ -240,7 +296,7 @@ const SIM = {
     const cine = st.units.find(u=>u.kind==='cinema');
     st.rep = clamp(1 + occ*2.3 + (cats.size/11)*1.0 + (cine.state==='open'?0.45:0) + (st.acc.events>0?0.15:0), 1, 5);
     rep.occ = occ; rep.repStars = st.rep;
-    rep.net = rep.rent + rep.fee + rep.ownProfit - rep.common - rep.promo - rep.interest - rep.principal - rep.events;
+    rep.net = rep.rent + rep.fee + rep.ownProfit - rep.common - rep.promo - rep.interest - rep.principal - rep.events - rep.tax;
     st.lastReport = rep;
     st.history.push({ Y:rep.Y, M:rep.M, net:rep.net, visitors:rep.visitors, occ });
     if (st.history.length>36) st.history.shift();
@@ -262,6 +318,7 @@ const SIM = {
     for (let i=avail.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [avail[i],avail[j]]=[avail[j],avail[i]]; }
     return avail.slice(0,5).map(t=>({
       tid:t.id, name:t.name, cat:t.cat, size:t.size, attract:t.attract, rate:t.rate, pull:t.pull, desc:t.desc,
+      demo:t.demo||null, facade:t.facade||'plain',
       minRent: Math.round(t.minRent*ECON.RENT_CAL*(0.92+rng()*0.2)),
       locked: t.attract>=6 && st.rep < 2.8,
     }));
@@ -288,9 +345,11 @@ const SIM = {
       if (typeof M3D!=='undefined') M3D.refreshUnit(u);
       return true;
     }
-    u.ten = { own:false, tid:cand.tid, name:cand.name, cat:cand.cat, attract:cand.attract, rate:cand.rate, minRent:cand.minRent, pull:cand.pull };
+    const keyMoney = cand.minRent * ECON.KEY_MONEY_MONTHS;
+    u.ten = { own:false, tid:cand.tid, name:cand.name, cat:cand.cat, attract:cand.attract, rate:cand.rate, minRent:cand.minRent, pull:cand.pull, demo:cand.demo||null, facade:cand.facade||'plain', keyMoney };
     u.state = 'fitting'; u.fitDays = ECON.FIT_DAYS; u.monthsBad=0; u.sat=70;
-    this.pushNews('📝 「'+cand.name+'」と定期借家契約を締結。内装工事開始('+ECON.FIT_DAYS+'日)');
+    this.st.cash += keyMoney;
+    this.pushNews('📝 「'+cand.name+'」と定期借家契約を締結(保証金'+fmtM(keyMoney)+'受領)。内装工事開始('+ECON.FIT_DAYS+'日)');
     if (typeof M3D!=='undefined') M3D.refreshUnit(u);
     return true;
   },
@@ -299,7 +358,7 @@ const SIM = {
     if (u.ten) return false;
     if (this.st.cash < f.fit) return 'cash';
     this.st.cash -= f.fit;
-    u.ten = { own:true, fid:f.id, name:f.name, cat:f.cat, attract:f.attract, gross:f.gross, staff:f.staff, misc:f.misc, pull:f.pull };
+    u.ten = { own:true, fid:f.id, name:f.name, cat:f.cat, attract:f.attract, gross:f.gross, staff:f.staff, misc:f.misc, pull:f.pull, demo:f.demo||null, facade:f.facade||'plain' };
     u.state='fitting'; u.fitDays=ECON.FIT_DAYS; u.monthsBad=0; u.sat=70;
     this.pushNews('🔨 直営「'+f.name+'」の出店工事を開始(投資'+fmtM(f.fit)+')');
     if (typeof M3D!=='undefined') M3D.refreshUnit(u);
@@ -313,12 +372,25 @@ const SIM = {
       this.pushNews('直営「'+u.ten.name+'」を閉店しました(撤去費500万円)');
     } else {
       const pen = u.ten.minRent*3;
-      if (this.st.cash < pen) return 'cash';
-      this.st.cash -= pen;
-      this.pushNews('「'+u.ten.name+'」に退店してもらいました(補償'+fmtM(pen)+')');
+      const refund = Math.round((u.ten.keyMoney||0)*ECON.KEY_MONEY_RETURN);
+      const net = pen + refund;
+      if (this.st.cash < net) return 'cash';
+      this.st.cash -= net;
+      this.pushNews('「'+u.ten.name+'」に退店してもらいました(補償'+fmtM(pen)+'+保証金返還'+fmtM(refund)+')');
     }
     u.ten=null; u.state='vacant'; u.monthsBad=0; u.sat=70; u.monthSales=0;
     if (typeof M3D!=='undefined') M3D.refreshUnit(u);
+    return true;
+  },
+
+  buyExpansion(){
+    const st = this.st;
+    if (!st.site.expansion || st.expansionBought) return false;
+    if (st.cash < ECON.EXPANSION_COST) return 'cash';
+    st.cash -= ECON.EXPANSION_COST;
+    st.expansionBought = true;
+    st.todayVisitors = this.calcVisitors();
+    this.pushNews('🏗️ 増床工事が完了。モールの集客力が恒久的に向上しました');
     return true;
   },
 
@@ -357,9 +429,10 @@ const SIM = {
       const s = localStorage.getItem(SAVE_KEY);
       if (!s) return false;
       const st = JSON.parse(s);
-      if (!st || st.v!==1) return false;
+      if (!st || st.v!==2 || !st.site) return false;
       for (const u of st.units) { u.todaySales=u.todaySales||0; }
       this.st = st;
+      this._catNorm = this.computeCatNorm();
       return true;
     } catch(e){ return false; }
   },

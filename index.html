@@ -30,6 +30,24 @@ body{ font-family:"Hiragino Sans","Yu Gothic UI","Yu Gothic",system-ui,sans-seri
 #btnContinue{ background:rgba(255,255,255,.16); color:#fff; border:1px solid rgba(255,255,255,.45) !important; }
 #btnHelp{ background:transparent; color:#d9b3ca; font-size:13px !important; font-weight:400 !important; }
 
+/* ===== 立地選択 ===== */
+#siteSelect{ position:fixed; inset:0; z-index:100; overflow-y:auto; padding:28px 16px 40px;
+  background:linear-gradient(160deg,#1b0f1e 0%,#3b1240 45%,#8e2a6b 130%); }
+.ss-head{ text-align:center; max-width:560px; margin:0 auto 20px; }
+.ss-head .sub{ color:#d9b3ca; font-size:13px; line-height:1.8; margin-top:8px; }
+#siteCards{ display:grid; gap:12px; max-width:720px; margin:0 auto; grid-template-columns:repeat(2,1fr); }
+.sitecard{ background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.16); border-radius:16px; padding:14px 15px; cursor:pointer; text-align:left; color:#fff; }
+.sitecard:hover{ border-color:rgba(255,255,255,.5); background:rgba(255,255,255,.12); }
+.sitecard h3{ font-size:16px; margin-bottom:6px; }
+.sitecard .sc-desc{ font-size:11.5px; color:#e3cfe0; line-height:1.6; margin-bottom:10px; min-height:56px; }
+.sitecard .sc-stats{ display:grid; grid-template-columns:1fr 1fr; gap:5px 10px; font-size:11px; }
+.sitecard .sc-stats div{ display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,.12); padding-bottom:3px; }
+.sitecard .sc-stats b{ color:#ffe0f0; font-weight:700; }
+.sitecard .sc-badges{ margin-top:8px; display:flex; gap:5px; flex-wrap:wrap; }
+.sitecard .sc-badge{ font-size:10px; background:rgba(255,255,255,.15); padding:2px 8px; border-radius:99px; }
+#btnSiteBack{ display:block; margin:22px auto 0; background:transparent; border:none; color:#d9b3ca; font-size:12px; cursor:pointer; }
+@media (max-width:640px){ #siteCards{ grid-template-columns:1fr; } }
+
 /* ===== HUD ===== */
 #hud{ position:fixed; inset:0; z-index:10; pointer-events:none; }
 #hud > *{ pointer-events:auto; }
@@ -69,6 +87,7 @@ body.walk #tabs{ display:none; }
 .trow-item.vac .val{ color:var(--accent); }
 .chip{ font-size:10px; color:#fff; border-radius:6px; padding:2px 6px; white-space:nowrap; }
 .ownchip{ font-size:10px; background:#b8860b; color:#fff; border-radius:6px; padding:1px 5px; }
+.demochip{ font-size:10px; background:rgba(255,255,255,.12); color:var(--tx2); border-radius:6px; padding:1px 6px; }
 .kpis{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 .kpi{ background:rgba(255,255,255,.06); border-radius:10px; padding:8px; }
 .kpi small{ display:block; color:var(--tx2); font-size:10px; margin-bottom:3px; }
@@ -131,10 +150,20 @@ body.walk #walkHint{ display:block; }
 <div id="title">
   <div class="logo">MALL MANAGEMENT SIMULATION</div>
   <h1>ユメモール</h1>
-  <div class="sub">日本のどこかに、あなたのショッピングモールが開業する。<br>テナントを誘致し、賃料を集め、直営店を繁盛させ、<br>日本一のモールを作り上げよう。</div>
+  <div class="sub">日本のどこかに、あなたのショッピングモールが開業する。<br>テナントを誘致し、賃料を集め、直営店を繁盛させ、<br>全国のSCで利益No.1を目指そう。</div>
   <button id="btnNew">グランドオープン(新規開始)</button>
   <button id="btnContinue" style="display:none">つづきから</button>
   <button id="btnHelp">あそびかた</button>
+</div>
+
+<div id="siteSelect" style="display:none">
+  <div class="ss-head">
+    <div class="logo">STEP 1 / 出店立地の選定</div>
+    <h1 style="font-size:26px">どこにモールを建てますか?</h1>
+    <div class="sub">立地によって建築資金・駅からの距離・駐車場台数・商圏の客層・増築余地が大きく変わります。じっくり選んでください。</div>
+  </div>
+  <div id="siteCards"></div>
+  <button id="btnSiteBack">タイトルへ戻る</button>
 </div>
 
 <div id="hud" style="display:none">

@@ -6,12 +6,44 @@ const UI = {
   activeTab:null, _hudCache:'', _joyEl:null, _prevSpeed:1,
 
   init(){
-    this.el('btnNew').onclick = ()=>{ if(SIM.hasSave() && !confirm('セーブデータを消して最初から始めますか?')) return; SIM.newGame(); this.startGame(); };
+    this.el('btnNew').onclick = ()=>{ if(SIM.hasSave() && !confirm('セーブデータを消して最初から始めますか?')) return; this.showSiteSelect(); };
     const bc=this.el('btnContinue');
     if (SIM.hasSave()) bc.style.display='';
     bc.onclick = ()=>{ if(SIM.load()) this.startGame(); };
     this.el('btnHelp').onclick = ()=>this.el('helpModal').style.display='flex';
+    this.el('btnSiteBack').onclick = ()=>{ this.el('siteSelect').style.display='none'; this.el('title').style.display=''; };
     document.querySelectorAll('[data-close]').forEach(b=>b.onclick=e=>{ e.target.closest('.modal-wrap').style.display='none'; if(e.target.dataset.close==='resume') SIM.st.speed=this._prevSpeed||1; });
+  },
+
+  showSiteSelect(){
+    this.el('title').style.display='none';
+    this.el('siteSelect').style.display='';
+    const carDep = min=>clamp(0.32+min*0.028, 0.18, 0.95);
+    const stationMul = min=>clamp(ECON.STATION_MUL_BASE-min*ECON.STATION_MUL_PER_MIN, ECON.STATION_MUL_MIN, ECON.STATION_MUL_BASE);
+    this.el('siteCards').innerHTML = SITES.map(s=>{
+      const totalCapital = s.cashStart + s.loanStart;
+      const parkCapVis = Math.round(s.parkingCap*ECON.PARKING_PER_SPACE/carDep(s.stationWalkMin));
+      return `<div class="sitecard" data-site="${s.id}">
+        <h3>${s.name}</h3>
+        <div class="sc-desc">${s.desc}</div>
+        <div class="sc-stats">
+          <div><span>建築資金</span><b>${fmtM(totalCapital)}</b></div>
+          <div><span>最寄駅</span><b>徒歩${s.stationWalkMin}分</b></div>
+          <div><span>駐車場</span><b>${s.parkingCap.toLocaleString()}台</b></div>
+          <div><span>駐車キャパ来館目安</span><b>${parkCapVis.toLocaleString()}人/日</b></div>
+          <div><span>商圏係数</span><b>${(s.catchmentMul*100).toFixed(0)}%</b></div>
+          <div><span>競合の強さ</span><b>${'★'.repeat(s.competitionLevel)||'なし'}</b></div>
+        </div>
+        <div class="sc-badges">
+          <span class="sc-badge">${s.expansion?'増築余地あり':'増築余地なし'}</span>
+          <span class="sc-badge">開業資金${fmtM(s.cashStart)}</span>
+          <span class="sc-badge">借入${fmtM(s.loanStart)}</span>
+        </div>
+      </div>`;
+    }).join('');
+    this.el('siteCards').querySelectorAll('.sitecard').forEach(c=>{
+      c.onclick = ()=>{ SIM.newGame(c.dataset.site); this.el('siteSelect').style.display='none'; this.startGame(); };
+    });
   },
 
   startGame(){
@@ -109,6 +141,7 @@ const UI = {
       line('共用部管理費', '-'+fmtM(rep.common), 'neg')+
       (rep.promo? line('販促費', '-'+fmtM(rep.promo), 'neg'):'')+
       (rep.events? line('催事費', '-'+fmtM(rep.events), 'neg'):'')+
+      line('固定資産税・都市計画税', '-'+fmtM(rep.tax), 'neg')+
       line('支払利息', '-'+fmtM(rep.interest), 'neg')+
       line('借入元本返済', '-'+fmtM(rep.principal), 'neg')+
       `<div class="row total"><span>月次収支</span><b class="${rep.net>=0?'pos':'neg'}">${rep.net>=0?'+':''}${fmtM(rep.net)}</b></div>`+
@@ -133,7 +166,7 @@ const UI = {
       const t=u.ten;
       const cat=CATS[t.cat];
       html += `<div class="tcard on">
-        <div class="tname"><span class="chip" style="background:${cat.color}">${cat.label}</span> ${t.name} ${t.own?'<span class="ownchip">直営</span>':''}</div>
+        <div class="tname"><span class="chip" style="background:${cat.color}">${cat.label}</span> ${t.name} ${t.own?'<span class="ownchip">直営</span>':''}${t.demo?` <span class="demochip">主客層: ${DEMO_LABEL[t.demo]}</span>`:''}</div>
         <div class="trow">今月売上: <b>${fmtM(u.monthSales)}</b> / 前月: ${fmtM(u.lastMonthSales)}</div>`;
       if (t.own){
         html += `<div class="trow">粗利率 ${(t.gross*100).toFixed(0)}% / 人件費 ${fmtM(t.staff)}/月</div>
@@ -182,9 +215,10 @@ const UI = {
         }
         const cat=CATS[t.cat];
         return `<div class="tcard ${t.locked?'locked':''}">
-          <div class="tname"><span class="chip" style="background:${cat.color}">${cat.label}</span> ${t.name}</div>
+          <div class="tname"><span class="chip" style="background:${cat.color}">${cat.label}</span> ${t.name}${t.demo?` <span class="demochip">${DEMO_LABEL[t.demo]}</span>`:''}</div>
           <div class="trow">${t.desc}</div>
           <div class="trow">最低保証 <b>${fmtM(t.minRent)}</b>/月 + 売上歩合 ${(t.rate*100).toFixed(0)}% / 集客力 ${'★'.repeat(Math.min(5,Math.ceil(t.attract/2)))}</div>
+          <div class="trow">契約時保証金(受領) <b>${fmtM(t.minRent*ECON.KEY_MONEY_MONTHS)}</b></div>
           ${t.locked? '<div class="warn">🔒 モール評判★2.8以上で誘致可能(人気テナントは選り好みします)</div>' : `<button class="btn" data-sign="${i}">誘致する(内装${ECON.FIT_DAYS}日)</button>`}
         </div>`;
       }).join('');
@@ -257,6 +291,17 @@ const UI = {
       kpi('本日来館(予測)', fmtNum(st.todayVisitors)+'人')+
       kpi('モール評判', '★'+st.rep.toFixed(1))+
       '</div>';
+    // 立地情報
+    const site=st.site;
+    html+=`<div class="fhead">出店立地: ${site.name}</div><div class="tcard">
+      <div class="trow">最寄駅 徒歩${site.stationWalkMin}分 / 駐車場 ${site.parkingCap.toLocaleString()}台 / 商圏係数 ${(site.catchmentMul*100).toFixed(0)}% / 競合 ${'★'.repeat(site.competitionLevel)||'なし'}</div>
+      <div class="trow">${site.desc}</div>
+    </div>`;
+    if (site.expansion){
+      html += st.expansionBought
+        ? `<div class="fhead">増築</div><div class="empty">🏗️ 増築済み(集客力+${ECON.EXPANSION_ATTRACT_BONUS} 恒久ボーナス)</div>`
+        : `<div class="fhead">増築投資</div><div class="tcard"><div class="trow">この立地は増築余地があります。投資すると集客力が恒久的に+${ECON.EXPANSION_ATTRACT_BONUS}されます。</div><div class="trow">費用 <b>${fmtM(ECON.EXPANSION_COST)}</b></div><button class="btn" id="btnExpand">増築する</button></div>`;
+    }
     // 販促
     html+='<div class="fhead">販促(毎月の広告宣伝)</div><div class="promo">'+
       ECON.PROMO_LEVELS.map((p,i)=>`<button class="pbtn ${st.promoLv===i?'on':''}" data-p="${i}">${p.label}<small>${p.c?fmtM(p.c)+'/月 来館+'+Math.round((p.m-1)*100)+'%':'0円'}</small></button>`).join('')+'</div>';
@@ -278,6 +323,12 @@ const UI = {
       else if (r==='busy') this.toast('すでに催事を開催中です');
       else { this.toast('🎪 催事を開始しました!'); M3D.setEventVisual(SIM.st.event.name); this.renderMgmt(); }
     });
+    const be=this.el('btnExpand');
+    if (be) be.onclick=()=>{
+      const r=SIM.buyExpansion();
+      if (r==='cash') this.toast('資金が足りません');
+      else if (r===true){ this.toast('🏗️ 増築が完了しました!'); this.renderMgmt(); }
+    };
   },
 
   renderNews(){

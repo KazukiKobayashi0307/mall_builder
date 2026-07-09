@@ -425,24 +425,35 @@ const M3D = {
   },
   catColor(cat){ return CATS[cat]? CATS[cat].color : '#666666'; },
 
+  FACADE_PALETTES: {
+    glass:    ['#33424f','#274a63','#3a3a3a','#2d5c4a'],
+    bold:     ['#e0212f','#0a63c9','#e08c14','#159e5e'],
+    boutique: ['#c9a63d','#b56b8f','#7d6bb5','#3d8f8f'],
+    warm:     ['#8a5a34','#a9734a','#6b4423','#b8925c'],
+    kids:     ['#ff8fb3','#5fb8ff','#ffc94d','#7bd48a'],
+    noren:    ['#7a1f1f','#1f4a2f','#2f2f6b','#6b3a1f'],
+    stall:    ['#d4382c','#c98a12','#2c7dd4','#2f9a55'],
+    tech:     ['#00d4b8','#e0208f','#7a2fe0','#1fa0e0'],
+    plain:    ['#6a6a6a','#5a7a8a','#7a6a5a','#5a6a5a'],
+  },
+  tenantAccent(t, facade){
+    const pal = this.FACADE_PALETTES[facade] || this.FACADE_PALETTES.plain;
+    const h = hashStr((t.tid||t.fid||t.name||'x')+(facade||''));
+    return pal[h % pal.length];
+  },
+
   buildShopUnit(u,g,y){
     const M=this.MAT;
     const cx=(u.x0+u.x1)/2, front = u.side==='N'? 4 : -4, dirn = u.side==='N'? 1 : -1;
     const faceRy = u.side==='N'? Math.PI : 0;
     if (u.state==='open' && u.ten){
-      const col=this.catColor(u.ten.cat);
-      // 看板
-      this.plane(u.w-0.7, 1.15, this.signMat(u.ten.name, col, '#ffffff', {fs:56}), cx, y+4.7, front+dirn*0.03, faceRy, g);
-      this.box(u.w-0.4, 0.18, 0.3, M.dark, cx, y+4.05, front+dirn*0.1, g);
-      // ガラス(中央にドア開口)
-      const gw = u.w*0.29;
-      this.box(gw, 3.6, 0.08, M.glass, u.x0+0.35+gw/2, y+1.8, front+dirn*0.04, g);
-      this.box(gw, 3.6, 0.08, M.glass, u.x1-0.35-gw/2, y+1.8, front+dirn*0.04, g);
-      // 店内: 奥壁ポスター/棚/照明
-      const inMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(col).lerp(new THREE.Color(0xffffff), 0.72) });
-      this.plane(u.w-1, 3.2, new THREE.MeshBasicMaterial({ color:new THREE.Color(col).lerp(new THREE.Color(0xffffff),0.35) }), cx, y+2.4, front+dirn*12.5, faceRy+Math.PI, g);
-      this.box(u.w*0.55, 1.25, 0.9, inMat, cx, y+0.63, front+dirn*4, g);
-      this.box(u.w*0.55, 1.25, 0.9, inMat, cx, y+0.63, front+dirn*7.5, g);
+      const t = u.ten;
+      const col = this.catColor(t.cat);
+      const facade = t.facade || 'plain';
+      const accent = this.tenantAccent(t, facade);
+      const ctx = { u,g,y,cx,front,dirn,faceRy,col,accent,t,M };
+      const fn = this.FACADE_BUILDERS[facade] || this.FACADE_BUILDERS.plain;
+      fn.call(this, ctx);
       if (u.kind==='fc'){
         this.box(u.w-1.2, 1.05, 1.3, M.white, cx, y+0.53, front+dirn*1.4, g);
         this.plane(u.w-1.5, 0.8, this.signMat('MENU','#333333','#ffffff',{fs:40}), cx, y+3.3, front+dirn*1.2, faceRy, g);
@@ -454,6 +465,150 @@ const M3D = {
       this.box(u.w-0.3, 4.3, 0.1, M.shutter, cx, y+2.2, front+dirn*0.06, g);
       this.plane(Math.min(u.w-1,6), 1.5, this.signMat('テナント募集','#f5f5f2','#c0392b',{fs:58,border:'#c0392b'}), cx, y+2.4, front+dirn*0.14, faceRy, g);
     }
+  },
+
+  // ---- 店構えアーキタイプ別ビルダー群 ----
+  storeGlass(ctx, gw){
+    const { u,g,y,cx,front,dirn,M } = ctx;
+    const w = gw!=null ? gw : u.w*0.29;
+    this.box(w, 3.6, 0.08, M.glass, u.x0+0.35+w/2, y+1.8, front+dirn*0.04, g);
+    this.box(w, 3.6, 0.08, M.glass, u.x1-0.35-w/2, y+1.8, front+dirn*0.04, g);
+  },
+  storeInterior(ctx, shelfLerp){
+    const { u,g,y,cx,front,dirn,faceRy,col,M } = ctx;
+    const inMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(col).lerp(new THREE.Color(0xffffff), shelfLerp!=null?shelfLerp:0.72) });
+    this.plane(u.w-1, 3.2, new THREE.MeshBasicMaterial({ color:new THREE.Color(col).lerp(new THREE.Color(0xffffff),0.35) }), cx, y+2.4, front+dirn*12.5, faceRy+Math.PI, g);
+    this.box(u.w*0.55, 1.25, 0.9, inMat, cx, y+0.63, front+dirn*4, g);
+    this.box(u.w*0.55, 1.25, 0.9, inMat, cx, y+0.63, front+dirn*7.5, g);
+  },
+  storeBladeSign(ctx, bg, fg){
+    const { u,g,y,cx,front,dirn,t } = ctx;
+    const bx = u.x0 + Math.min(1.6, u.w*0.18);
+    const bm = this.signMat(t.name, bg, fg, {fs:44, w:256, h:256});
+    const blade = this.plane(1.5, 1.5, bm, bx, y+3.5, front+dirn*0.75, Math.PI/2, g);
+    blade.rotation.y = dirn>0 ? Math.PI/2 : -Math.PI/2;
+    this.box(0.08, 1.7, 0.08, this.MAT.dark, bx, y+3.5, front+dirn*0.05, g);
+  },
+  FACADE_BUILDERS: {
+    // モダンガラス張り(生活雑貨・靴・大型店)
+    glass(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,col,accent,t,M } = ctx;
+      this.plane(u.w-0.7, 1.15, this.signMat(t.name, col, '#ffffff', {fs:56}), cx, y+4.7, front+dirn*0.03, faceRy, g);
+      this.box(u.w-0.4, 0.14, 0.3, new THREE.MeshLambertMaterial({color:accent}), cx, y+4.05, front+dirn*0.1, g);
+      this.box(u.w-0.5, 3.9, 0.06, M.glass, cx, y+1.95, front+dirn*0.06, g);
+      this.box(0.12, 3.9, 0.12, new THREE.MeshLambertMaterial({color:accent}), u.x0+0.3, y+1.95, front+dirn*0.08, g);
+      this.box(0.12, 3.9, 0.12, new THREE.MeshLambertMaterial({color:accent}), u.x1-0.3, y+1.95, front+dirn*0.08, g);
+      this.storeInterior(ctx, 0.72);
+    },
+    // 元気カラーブロック(ディスカウント・スポーツ・家電)
+    bold(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
+      const bandMat = new THREE.MeshLambertMaterial({color:accent});
+      this.box(u.w-0.3, 1.5, 0.28, bandMat, cx, y+3.95, front+dirn*0.08, g);
+      this.plane(u.w-0.8, 1.05, this.signMat(t.name, accent, '#ffffff', {fs:54}), cx, y+3.95, front+dirn*0.23, faceRy, g);
+      this.box(u.w*0.5, 0.35, 0.3, M.white, u.x0+u.w*0.27, y+3.15, front+dirn*0.1, g).rotation.z = dirn*0.12;
+      this.storeGlass(ctx);
+      this.storeInterior(ctx, 0.65);
+    },
+    // 上品なブティック(レディース・雑貨)
+    boutique(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
+      const trim = new THREE.MeshLambertMaterial({color:accent});
+      this.box(u.w-0.6, 0.1, 0.22, trim, cx, y+4.15, front+dirn*0.08, g);
+      this.box(u.w-0.6, 0.1, 0.22, trim, cx, y+1.35, front+dirn*0.08, g);
+      this.plane(u.w-1.2, 0.9, this.signMat(t.name, '#f7f3ea', accent, {fs:44}), cx, y+4.55, front+dirn*0.03, faceRy, g);
+      this.box(u.w-0.5, 3.9, 0.06, M.glass, cx, y+1.95, front+dirn*0.06, g);
+      // マネキン(トルソー)
+      const mm = new THREE.MeshLambertMaterial({color:0xe8e0d0});
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.4,1.0,10), mm);
+      torso.position.set(cx-u.w*0.18, y+1.35, front+dirn*3.5); g.add(torso);
+      const tstand = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.06,0.85,8), M.dark);
+      tstand.position.set(cx-u.w*0.18, y+0.42, front+dirn*3.5); g.add(tstand);
+      this.storeBladeSign(ctx, '#f7f3ea', accent);
+      this.storeInterior(ctx, 0.8);
+    },
+    // 木目の温かいカフェ・パン屋
+    warm(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
+      const wood = new THREE.MeshLambertMaterial({color:accent});
+      const awn = this.box(u.w-0.2, 0.12, 1.4, wood, cx, y+3.55, front+dirn*0.8, g);
+      awn.rotation.x = dirn>0 ? -0.28 : 0.28;
+      this.plane(u.w-1.2, 0.85, this.signMat(t.name, accent, '#fff7ea', {fs:42}), cx, y+4.05, front+dirn*0.05, faceRy, g);
+      this.storeGlass(ctx, u.w*0.34);
+      // 屋外の小さな丸テーブル
+      const tb = new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.42,0.06,12), M.white);
+      tb.position.set(cx+u.w*0.22, y+0.75, front+dirn*2.6); g.add(tb);
+      this.box(0.06,0.7,0.06, M.dark, cx+u.w*0.22, y+0.4, front+dirn*2.6, g);
+      this.storeBladeSign(ctx, accent, '#fff7ea');
+      this.storeInterior(ctx, 0.68);
+    },
+    // カラフル・キッズ向け
+    kids(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
+      const stripeCols = [accent, '#ffffff'];
+      for (let i=0;i<Math.floor((u.w-0.4)/1.0);i++){
+        const sx = u.x0+0.3+i*1.0+0.5;
+        this.box(0.9, 1.3, 0.22, new THREE.MeshLambertMaterial({color:stripeCols[i%2]}), sx, y+3.85, front+dirn*0.08, g);
+      }
+      this.plane(u.w-1, 1.0, this.signMat(t.name, '#ffffff', accent, {fs:50,border:accent}), cx, y+4.55, front+dirn*0.15, faceRy, g);
+      const blob = new THREE.Mesh(new THREE.SphereGeometry(0.5,12,10), new THREE.MeshLambertMaterial({color:accent}));
+      blob.position.set(u.x0+0.7, y+0.5, front+dirn*3.2); blob.scale.set(1,0.85,1); g.add(blob);
+      this.storeGlass(ctx);
+      this.storeInterior(ctx, 0.75);
+    },
+    // 暖簾のかかる和食・中華レストラン
+    noren(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
+      this.plane(u.w-0.7, 1.1, this.signMat(t.name, '#2a2016', '#f0d99a', {fs:48}), cx, y+4.6, front+dirn*0.03, faceRy, g);
+      this.box(u.w-0.4, 0.16, 0.3, M.dark, cx, y+4.0, front+dirn*0.1, g);
+      const norenMat = new THREE.MeshLambertMaterial({color:accent, side:THREE.DoubleSide});
+      const halfW = (u.w-1.4)/2;
+      this.plane(halfW, 1.5, norenMat, cx-halfW/2-0.15, y+3.05, front+dirn*0.5, faceRy, g);
+      this.plane(halfW, 1.5, norenMat, cx+halfW/2+0.15, y+3.05, front+dirn*0.5, faceRy, g);
+      this.box(u.w-0.6, 0.08, 0.08, M.dark, cx, y+3.78, front+dirn*0.5, g);
+      // ちょうちん
+      const lant = new THREE.Mesh(new THREE.SphereGeometry(0.28,10,8), new THREE.MeshLambertMaterial({color:'#c0392b'}));
+      lant.scale.set(1,1.3,1); lant.position.set(u.x1-0.7, y+3.3, front+dirn*0.7); g.add(lant);
+      this.storeGlass(ctx, u.w*0.22);
+      this.storeInterior(ctx, 0.55);
+    },
+    // フードコートの開放型店舗
+    stall(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
+      const counterMat = new THREE.MeshLambertMaterial({color:accent});
+      this.box(u.w-0.5, 1.1, 0.7, counterMat, cx, y+0.55, front+dirn*3.3, g);
+      this.box(u.w-0.5, 0.08, 0.7, M.white, cx, y+1.11, front+dirn*3.3, g);
+      this.plane(u.w-1, 1.0, this.signMat(t.name, accent, '#ffffff', {fs:48}), cx, y+4.15, front+dirn*0.05, faceRy, g);
+      this.box(u.w-0.6, 0.1, 0.1, M.dark, cx, y+3.6, front+dirn*0.4, g);
+      const lp = this.plane(u.w-1.4, 0.4, M.lightP, cx, y+3.9, front+dirn*1.6, 0, g); lp.rotation.x = Math.PI/2;
+      this.storeInterior(ctx, 0.6);
+    },
+    // ダーク×ネオン(ホビー・ゲーム・携帯)
+    tech(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
+      const darkMat = new THREE.MeshLambertMaterial({color:0x1c1c22});
+      this.box(u.w-0.4, 1.3, 0.2, darkMat, cx, y+4.1, front+dirn*0.06, g);
+      const neonMat = new THREE.MeshBasicMaterial({color:accent});
+      this.box(u.w-0.4, 0.06, 0.14, neonMat, cx, y+3.5, front+dirn*0.12, g);
+      this.box(u.w-0.4, 0.06, 0.14, neonMat, cx, y+4.7, front+dirn*0.12, g);
+      this.plane(u.w-1, 0.9, this.signMat(t.name, '#1c1c22', accent, {fs:46}), cx, y+4.1, front+dirn*0.13, faceRy, g);
+      this.storeGlass(ctx);
+      // 店内の画面っぽい光
+      for (let i=0;i<3;i++){
+        const sx = u.x0 + u.w*(0.22+i*0.28);
+        this.plane(1.0, 0.65, new THREE.MeshBasicMaterial({color:accent}), sx, y+1.9, front+dirn*11, faceRy+Math.PI, g);
+      }
+      this.storeBladeSign(ctx, '#1c1c22', accent);
+      this.storeInterior(ctx, 0.4);
+    },
+    // シンプル・サービス業態
+    plain(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,col,accent,t,M } = ctx;
+      this.plane(u.w-0.8, 0.95, this.signMat(t.name, col, '#ffffff', {fs:50}), cx, y+4.45, front+dirn*0.03, faceRy, g);
+      this.box(u.w-0.5, 2.6, 0.06, M.glass, cx, y+1.4, front+dirn*0.06, g);
+      this.box(u.w-0.6, 1.1, 0.7, new THREE.MeshLambertMaterial({color:accent}), cx, y+0.55, front+dirn*2.2, g);
+      this.storeInterior(ctx, 0.78);
+    },
   },
 
   buildEntranceUnit(u,g,y){
@@ -703,19 +858,51 @@ const M3D = {
 
   // ---------- NPC ----------
   initNPC(){
-    const bodyGeo=new THREE.CylinderGeometry(0.21,0.26,0.95,7);
-    const headGeo=new THREE.SphereGeometry(0.155,8,7);
-    const palette=[0xc94f4f,0x4f6ec9,0x50a35c,0xc9a44f,0x9b59b6,0x5fa8b8,0xd97b9c,0x8a8f98,0x6b4f2e,0x37474f,0xe0e0e0,0x2e5d4a];
+    this._npcGeo = {
+      body: new THREE.CylinderGeometry(0.21,0.26,0.95,7),
+      head: new THREE.SphereGeometry(0.155,8,7),
+      hairCap: new THREE.SphereGeometry(0.168,9,7,0,Math.PI*2,0,Math.PI*0.62),
+      ponytail: new THREE.CylinderGeometry(0.05,0.07,0.4,6),
+      childBody: new THREE.CylinderGeometry(0.14,0.17,0.55,7),
+      childHead: new THREE.SphereGeometry(0.12,8,7),
+    };
     this.npcs=[];
     for (let i=0;i<44;i++){
       const grp=new THREE.Group();
-      const mat=new THREE.MeshLambertMaterial({ color:palette[i%palette.length] });
-      const body=new THREE.Mesh(bodyGeo, mat); body.position.y=0.68; grp.add(body);
-      const head=new THREE.Mesh(headGeo, new THREE.MeshLambertMaterial({color:0xe8c39e})); head.position.y=1.36; grp.add(head);
-      if (i%5===0) grp.scale.setScalar(0.66);
       grp.visible=false; this.scene.add(grp);
-      this.npcs.push({ grp, active:false, f:1, x:0, z:0, y:0, wps:[], wi:0, speed:1.1+Math.random()*0.6, dwell:0, plan:[] });
+      this.npcs.push({ grp, active:false, f:1, x:0, z:0, y:0, wps:[], wi:0, speed:1.1+Math.random()*0.6, dwell:0, arch:'adult_female' });
     }
+  },
+  sampleArchetype(){
+    const shares = SIM.archShares();
+    let r = Math.random(), acc = 0;
+    for (const a in shares){ acc += shares[a]; if (r<=acc) return a; }
+    return 'adult_female';
+  },
+  buildNpcVisual(n, arch){
+    const A = ARCHETYPES[arch];
+    const geo = this._npcGeo;
+    while (n.grp.children.length) n.grp.remove(n.grp.children[0]);
+    const bodyColor = A.palette[Math.floor(Math.random()*A.palette.length)];
+    const hairColor = A.hair[Math.floor(Math.random()*A.hair.length)];
+    const bodyMat = new THREE.MeshLambertMaterial({color:bodyColor});
+    const skinMat = new THREE.MeshLambertMaterial({color:A.skin});
+    const hairMat = new THREE.MeshLambertMaterial({color:hairColor});
+    const body=new THREE.Mesh(geo.body, bodyMat); body.position.y=0.68; n.grp.add(body);
+    const head=new THREE.Mesh(geo.head, skinMat); head.position.y=1.36; n.grp.add(head);
+    const hair=new THREE.Mesh(geo.hairCap, hairMat); hair.position.y=1.43; hair.rotation.x=Math.PI; n.grp.add(hair);
+    if (arch==='young_female' && Math.random()<0.4){
+      const pt=new THREE.Mesh(geo.ponytail, hairMat); pt.position.set(0,1.24,-0.17); pt.rotation.x=0.55; n.grp.add(pt);
+    }
+    n.grp.scale.setScalar(A.height * (0.94+Math.random()*0.12));
+    if (arch==='kids_family'){
+      const kidPalette = A.palette;
+      const cBody=new THREE.Mesh(geo.childBody, new THREE.MeshLambertMaterial({color:kidPalette[(Math.floor(Math.random()*kidPalette.length)+1)%kidPalette.length]}));
+      cBody.position.set(0.46,0.32,0.12); n.grp.add(cBody);
+      const cHead=new THREE.Mesh(geo.childHead, skinMat); cHead.position.set(0.46,0.72,0.12); n.grp.add(cHead);
+      const cHair=new THREE.Mesh(geo.hairCap, hairMat); cHair.position.set(0.46,0.76,0.12); cHair.rotation.x=Math.PI; cHair.scale.setScalar(0.8); n.grp.add(cHair);
+    }
+    n.arch = arch;
   },
   laneZ(z){ return z>=0? 3.2 : -3.2; },
   crossX(f, x){
@@ -764,15 +951,17 @@ const M3D = {
     const ent=ents[Math.random()<0.45?0:(Math.random()<0.55?2:1)];
     n.active=true; n.f=ent.f; n.x=ent.x; n.z=ent.z; n.y=0;
     n.wps=[]; n.wi=0; n._px=ent.x; n._pz=ent.z; n._pf=ent.f;
-    // 訪問先を1〜3店選ぶ(集客力加重)
+    const arch = this.sampleArchetype();
+    this.buildNpcVisual(n, arch);
+    // 訪問先を1〜3店選ぶ(集客力×客層の相性で加重)
     const open=SIM.st.units.filter(u=>u.state==='open'&&u.ten);
     if (!open.length){ n.active=false; return; }
     const targets=[];
     const count=1+Math.floor(Math.random()*3);
     for (let i=0;i<count;i++){
-      let tw=0; for (const u of open) tw+=u.ten.attract;
+      let tw=0; for (const u of open) tw += u.ten.attract * SIM.tenantAppeal(u.ten, arch);
       let r=Math.random()*tw, pick=open[0];
-      for (const u of open){ r-=u.ten.attract; if(r<=0){ pick=u; break; } }
+      for (const u of open){ r -= u.ten.attract * SIM.tenantAppeal(u.ten, arch); if(r<=0){ pick=u; break; } }
       targets.push(pick);
     }
     targets.sort((a,b)=>a.floor-b.floor);
