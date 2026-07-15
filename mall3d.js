@@ -60,6 +60,63 @@ const M3D = {
     if (!this._matCache[key]) this._matCache[key] = new THREE.MeshBasicMaterial({color:hex});
     return this._matCache[key];
   },
+  woodFloorMat(repX, repY){
+    const key='woodplank';
+    let tex=this.texCache[key];
+    if (!tex){
+      const cv=document.createElement('canvas'); cv.width=cv.height=128;
+      const c=cv.getContext('2d');
+      c.fillStyle='#cdae7f'; c.fillRect(0,0,128,128);
+      const rows=6, rowH=128/rows;
+      for (let r=0;r<rows;r++){
+        const y=r*rowH, offset=(r%2)*32;
+        c.fillStyle = r%2===0 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+        c.fillRect(0,y,128,rowH);
+        c.strokeStyle='rgba(104,76,44,0.55)'; c.lineWidth=1.4;
+        c.beginPath(); c.moveTo(0,y); c.lineTo(128,y); c.stroke();
+        for (let x=-offset; x<128; x+=64){
+          c.beginPath(); c.moveTo(x,y); c.lineTo(x,y+rowH); c.stroke();
+          c.strokeStyle='rgba(255,255,255,0.12)';
+          c.beginPath(); c.moveTo(x+10,y+rowH*0.35); c.lineTo(x+48,y+rowH*0.4); c.stroke();
+          c.strokeStyle='rgba(104,76,44,0.55)';
+        }
+      }
+      tex=new THREE.CanvasTexture(cv);
+      tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+      this.texCache[key]=tex;
+    }
+    const t2=tex.clone(); t2.needsUpdate=true; t2.wrapS=t2.wrapT=THREE.RepeatWrapping; t2.repeat.set(repX,repY);
+    return new THREE.MeshLambertMaterial({map:t2});
+  },
+  menuBoardTex(name, accent){
+    const key='menuboard|'+name+'|'+accent;
+    if (this.texCache[key]) return this.texCache[key];
+    const W=512,H=272;
+    const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+    const c=cv.getContext('2d');
+    c.fillStyle='#161616'; c.fillRect(0,0,W,H);
+    c.fillStyle=accent; c.fillRect(0,0,W,58);
+    c.fillStyle='#ffffff'; c.textAlign='center'; c.textBaseline='middle';
+    let fs=32; c.font='700 '+fs+'px "Hiragino Sans","Yu Gothic",sans-serif';
+    while (c.measureText(name).width>W-30 && fs>16){ fs-=2; c.font='700 '+fs+'px "Hiragino Sans","Yu Gothic",sans-serif'; }
+    c.fillText(name, W/2, 30);
+    const cols=4, rows=2, pad=10, cw=(W-pad*(cols+1))/cols, ch=(H-58-pad*(rows+1))/rows;
+    const photoPal=['#e0a24a','#c9573a','#7a9e4a','#d4b23a','#a85a8a','#5a9ea0','#c98a3a','#8a5a3a'];
+    let pi=hashStr(name)%photoPal.length;
+    for (let r=0;r<rows;r++) for (let ci=0;ci<cols;ci++){
+      const x=pad+ci*(cw+pad), y=58+pad+r*(ch+pad);
+      c.fillStyle=photoPal[pi%photoPal.length]; pi++;
+      if (c.roundRect){ c.beginPath(); c.roundRect(x,y,cw,ch,5); c.fill(); } else c.fillRect(x,y,cw,ch);
+      c.fillStyle='rgba(255,255,255,0.18)'; c.fillRect(x,y,cw,ch*0.4);
+      c.fillStyle='rgba(0,0,0,0.35)'; c.fillRect(x,y+ch-16,cw,16);
+      c.fillStyle='#ffffff'; c.font='600 12px sans-serif'; c.textAlign='left';
+      c.fillText('¥'+(380+pi*30), x+4, y+ch-8);
+      c.textAlign='center';
+    }
+    const tex=new THREE.CanvasTexture(cv);
+    this.texCache[key]=tex;
+    return tex;
+  },
   floorMat(bg, line, repX, repY){
     const key = 'floor|'+bg+'|'+line;
     let tex = this.texCache[key];
@@ -290,53 +347,88 @@ const M3D = {
     const banner2 = this.plane(16,2.2, this.signMat('YUME MALL セントラルコート','#8e2a6b','#ffffff',{fs:46}), 0, 15.6, -0.01, Math.PI, this.gFloors[3]);
     this.eventBanner2 = banner2;
 
-    // ===== フードコート(3F東) =====
+    // ===== フードコート(3F東)実店舗を参考に作り込み =====
     const g3=this.gFloors[3];
-    // 専用床(タイル柄を変えてゾーンを可視化)
-    this.box(46,0.42,8, this.floorMat('#f2e6cf','#d9c49a',12,2), 65, 12-0.19, 0, g3);
-    this.plane(20,2.4, this.signMat('FOOD COURT フードコート','#c0392b','#ffffff',{fs:44,w:768,h:100}), 65, 12+5.35, 0, 0, g3);
-    { const tm=new THREE.Matrix4();
-      // 丸テーブル+スツール4脚
-      const roundPos=[]; for (let x=46; x<=88; x+=8) roundPos.push([x,-2.4]);
-      const tops=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.72,0.72,0.08,12), this.MAT.white, roundPos.length);
-      const legs=new THREE.InstancedMesh(new THREE.BoxGeometry(0.12,0.78,0.12), this.MAT.dark, roundPos.length);
-      const stools=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.25,0.25,0.45,8), this.MAT.wood, roundPos.length*4);
-      let si=0;
+    const FC_X0=44, FC_X1=90, FC_CX=(FC_X0+FC_X1)/2, FC_W=FC_X1-FC_X0;
+    // 木目調の専用床
+    this.box(FC_W,0.42,8, this.woodFloorMat(FC_W/2.2,3.6), FC_CX, 12-0.19, 0, g3);
+    this.plane(20,2.4, this.signMat('FOOD COURT フードコート','#c0392b','#ffffff',{fs:44,w:768,h:100}), FC_CX, 12+5.35, 0, 0, g3);
+    // 装飾柱(縦ルーバー+アクセントライト)2本
+    for (const px of [FC_X0+6, FC_X1-6]){
+      this.box(0.7,6,0.7, this.litMat(0x8a5a34), px, 12+3, -3.5, g3);
+      for (let i=-3;i<=3;i++) this.box(0.08,5.6,0.06, this.litMat(i%2?0xc9702e:0xe8dcc6), px+i*0.09, 12+3, -3.12, g3);
+      this.box(0.1,5.4,0.1, this.basicMat(0xff9a4a), px, 12+3, -3.34, g3);
+    }
+    { const dummy=new THREE.Object3D();
+      // 丸テーブル+ツートン椅子4脚(背もたれ付き)
+      const roundPos=[]; for (let x=FC_X0+3; x<=FC_X1-3; x+=8) roundPos.push([x,-2.4]);
+      const tops=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.72,0.72,0.08,16), this.MAT.white, roundPos.length);
+      const rlegs=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07,0.11,0.75,10), this.MAT.dark, roundPos.length);
+      const chairColors=[0x3a6b9e,0x4a9e5f,0xc9573a,0xc9a03a];
+      const chairSeatSets = chairColors.map(hex=>new THREE.InstancedMesh(new THREE.BoxGeometry(0.4,0.07,0.4), this.litMat(hex), roundPos.length));
+      const chairBackSets = chairColors.map(hex=>new THREE.InstancedMesh(new THREE.BoxGeometry(0.4,0.42,0.06), this.litMat(hex), roundPos.length));
+      const chairLegs=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.025,0.03,0.43,6), this.MAT.dark, roundPos.length*4);
+      let cli=0;
+      const chairCounters=[0,0,0,0];
       roundPos.forEach(([x,zz],i)=>{
-        tm.makeTranslation(x, 12.78, zz); tops.setMatrixAt(i,tm);
-        tm.makeTranslation(x, 12.39, zz); legs.setMatrixAt(i,tm);
-        for (const [dx,dz] of [[-1,0],[1,0],[0,-1],[0,1]]){
-          tm.makeTranslation(x+dx*1.05, 12.43, zz+dz*1.05); stools.setMatrixAt(si++,tm);
-        }
+        dummy.position.set(x,12.78,zz); dummy.rotation.set(0,0,0); dummy.updateMatrix(); tops.setMatrixAt(i,dummy.matrix);
+        dummy.position.set(x,12.39,zz); dummy.updateMatrix(); rlegs.setMatrixAt(i,dummy.matrix);
+        [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dx,dz],ci)=>{
+          const px=x+dx*1.02, pz=zz+dz*1.02, ang=Math.atan2(dx,dz);
+          const colorIdx=(i+ci)%4;
+          const seatIdx=chairCounters[colorIdx]++;
+          dummy.position.set(px,12.42,pz); dummy.rotation.set(0,ang,0); dummy.updateMatrix();
+          chairSeatSets[colorIdx].setMatrixAt(seatIdx,dummy.matrix);
+          dummy.position.set(px-dx*0.21,12.62,pz-dz*0.21); dummy.rotation.set(0,ang,0); dummy.updateMatrix();
+          chairBackSets[colorIdx].setMatrixAt(seatIdx,dummy.matrix);
+          dummy.position.set(px,12.19,pz); dummy.rotation.set(0,0,0); dummy.updateMatrix();
+          chairLegs.setMatrixAt(cli++,dummy.matrix);
+        });
       });
-      g3.add(tops); g3.add(legs); g3.add(stools);
+      g3.add(tops); g3.add(rlegs); g3.add(chairLegs);
+      chairSeatSets.forEach(m=>g3.add(m)); chairBackSets.forEach(m=>g3.add(m));
       // ファミリー向け長方形テーブル+ベンチ2列
-      const rectPos=[]; for (let x=50; x<=84; x+=10) rectPos.push([x,2.4]);
+      const rectPos=[]; for (let x=FC_X0+7; x<=FC_X1-7; x+=10) rectPos.push([x,2.4]);
       const rTops=new THREE.InstancedMesh(new THREE.BoxGeometry(1.7,0.08,0.9), this.MAT.white, rectPos.length);
       const rLegs=new THREE.InstancedMesh(new THREE.BoxGeometry(0.1,0.75,0.1), this.MAT.dark, rectPos.length*2);
       const rBench=new THREE.InstancedMesh(new THREE.BoxGeometry(1.7,0.4,0.32), this.MAT.wood, rectPos.length*2);
       let rli=0, rbi=0;
       rectPos.forEach(([x,zz],i)=>{
-        tm.makeTranslation(x, 12.76, zz); rTops.setMatrixAt(i,tm);
-        for (const dx of [-0.7,0.7]){ tm.makeTranslation(x+dx, 12.35, zz); rLegs.setMatrixAt(rli++,tm); }
-        for (const dz of [-0.62,0.62]){ tm.makeTranslation(x, 12.42, zz+dz); rBench.setMatrixAt(rbi++,tm); }
+        dummy.position.set(x,12.76,zz); dummy.rotation.set(0,0,0); dummy.updateMatrix(); rTops.setMatrixAt(i,dummy.matrix);
+        for (const dx of [-0.7,0.7]){ dummy.position.set(x+dx,12.35,zz); dummy.updateMatrix(); rLegs.setMatrixAt(rli++,dummy.matrix); }
+        for (const dz of [-0.62,0.62]){ dummy.position.set(x,12.42,zz+dz); dummy.updateMatrix(); rBench.setMatrixAt(rbi++,dummy.matrix); }
       });
       g3.add(rTops); g3.add(rLegs); g3.add(rBench);
-      // ペンダント照明(天井から吊り下げ)
-      const pendPos=[]; for (let x=48; x<=86; x+=10) for (const zz of [-2.4,2.4]) pendPos.push([x,zz]);
-      const cords=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012,0.012,1.6,4), this.MAT.dark, pendPos.length);
-      const shades=new THREE.InstancedMesh(new THREE.ConeGeometry(0.24,0.28,10), new THREE.MeshLambertMaterial({color:0xc9a24a}), pendPos.length);
-      pendPos.forEach(([x,zz],i)=>{
-        tm.makeTranslation(x, 17.0, zz); cords.setMatrixAt(i,tm);
-        tm.makeTranslation(x, 16.15, zz); shades.setMatrixAt(i,tm);
+      // 丸型ペンダント照明(3灯クラスター、実店舗を参考)
+      const pendClusters=[]; for (let x=FC_X0+8; x<=FC_X1-8; x+=11) for (const zz of [-2.4,2.4]) pendClusters.push([x,zz]);
+      const cords=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.01,0.01,1.3,4), this.MAT.dark, pendClusters.length*3);
+      const globes=new THREE.InstancedMesh(new THREE.SphereGeometry(0.16,12,10), this.basicMat(0xfff6e0), pendClusters.length*3);
+      let pgi=0;
+      pendClusters.forEach(([x,zz])=>{
+        [-0.32,0,0.32].forEach(off=>{
+          const gx=x+off, gy=16.55;
+          dummy.position.set(gx,gy+0.65,zz); dummy.rotation.set(0,0,0); dummy.updateMatrix(); cords.setMatrixAt(pgi,dummy.matrix);
+          dummy.position.set(gx,gy,zz); dummy.updateMatrix(); globes.setMatrixAt(pgi,dummy.matrix);
+          pgi++;
+        });
       });
-      g3.add(cords); g3.add(shades);
+      g3.add(cords); g3.add(globes);
+      // 天井の斜めスラットパネル(実店舗のオレンジ×木目天井を参考)
+      const slatPal=[0xc9702e,0xe0dcc9,0xb98a5a,0xd98a3a];
+      const slatPts=[]; for (let x=FC_X0-2; x<=FC_X1+2; x+=2.2) for (let zr=0; zr<3; zr++) slatPts.push([x, -3+zr*3, (Math.random()-0.5)*0.5]);
+      const slats=new THREE.InstancedMesh(new THREE.BoxGeometry(1.9,0.1,0.5), this.MAT.wood, slatPts.length);
+      slatPts.forEach(([x,zz,rot],i)=>{ dummy.position.set(x,17.78,zz); dummy.rotation.set(0,rot,0); dummy.updateMatrix(); slats.setMatrixAt(i,dummy.matrix); });
+      g3.add(slats);
+      for (let i=0;i<slatPts.length;i+=3){
+        const [x,zz]=slatPts[i];
+        this.box(1.9,0.11,0.5, this.litMat(slatPal[i%slatPal.length]), x, 17.9, zz, g3);
+      }
       // 中央の緑地アイランド
       const planterM = new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.2,0.5,16), this.MAT.white);
-      planterM.position.set(65,12.25,0); g3.add(planterM);
+      planterM.position.set(FC_CX,12.25,0); g3.add(planterM);
       for (let i=0;i<3;i++){
-        const bush=new THREE.Mesh(new THREE.SphereGeometry(0.5-i*0.08,10,8), new THREE.MeshLambertMaterial({color:0x4e7d43}));
-        bush.position.set(65+(i-1)*0.5, 12.75+i*0.15, (i-1)*0.3); g3.add(bush);
+        const bush=new THREE.Mesh(new THREE.SphereGeometry(0.5-i*0.08,10,8), this.litMat(0x4e7d43));
+        bush.position.set(FC_CX+(i-1)*0.5, 12.75+i*0.15, (i-1)*0.3); g3.add(bush);
       }
     }
 
@@ -664,14 +756,23 @@ const M3D = {
       this.storeGlass(ctx, u.w*0.22);
       this.storeInterior(ctx, 0.55, 'counter');
     },
-    // フードコートの開放型店舗
+    // フードコートの開放型店舗(実店舗のバックライトメニュー看板を参考)
     stall(ctx){
-      const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
+      const { u,g,y,cx,front,dirn,faceRy,col,accent,t,M } = ctx;
+      // 上部ファサード(ブランドカラーの帯+店名)
+      this.box(u.w-0.3, 0.7, 0.22, this.litMat(accent), cx, y+4.55, front+dirn*0.09, g);
+      this.plane(u.w-0.9, 0.5, this.signMat(t.name, accent, '#ffffff', {fs:34}), cx, y+4.55, front+dirn*0.21, faceRy, g);
+      // バックライト式メニューボード(実物のフード写真グリッド看板を再現、幅は区画サイズに関わらず一定)
+      const menuMat = new THREE.MeshBasicMaterial({ map: this.menuBoardTex(t.name, accent) });
+      const menuW = Math.min(u.w-1.1, 4.6), menuH = menuW*0.53;
+      this.plane(menuW, menuH, menuMat, cx, y+3.55, front+dirn*0.14, faceRy, g);
+      this.box(menuW+0.15, 0.06, 0.06, M.dark, cx, y+3.55+menuH/2+0.05, front+dirn*0.2, g);
+      // カウンター
       this.box(u.w-0.5, 1.1, 0.7, this.litMat(accent), cx, y+0.55, front+dirn*3.3, g);
       this.box(u.w-0.5, 0.08, 0.7, M.white, cx, y+1.11, front+dirn*3.3, g);
-      this.plane(u.w-1, 1.0, this.signMat(t.name, accent, '#ffffff', {fs:48}), cx, y+4.15, front+dirn*0.05, faceRy, g);
-      this.box(u.w-0.6, 0.1, 0.1, M.dark, cx, y+3.6, front+dirn*0.4, g);
-      const lp = this.plane(u.w-1.4, 0.4, M.lightP, cx, y+3.9, front+dirn*1.6, 0, g); lp.rotation.x = Math.PI/2;
+      // レジ機っぽいアクセント
+      this.box(0.32,0.28,0.28, M.dark, cx-u.w*0.28, y+1.28, front+dirn*3.15, g);
+      const lp = this.plane(u.w-1.4, 0.4, M.lightP, cx, y+4.85, front+dirn*1.6, 0, g); lp.rotation.x = Math.PI/2;
       this.storeInterior(ctx, 0.6, 'counter');
     },
     // ダーク×ネオン(ホビー・ゲーム・携帯)
@@ -948,34 +1049,56 @@ const M3D = {
 
   // ---------- NPC ----------
   initNPC(){
-    const faceCv=document.createElement('canvas'); faceCv.width=64; faceCv.height=64;
+    const FS=4; // 解像度倍率
+    const faceCv=document.createElement('canvas'); faceCv.width=96*FS; faceCv.height=96*FS;
     const fc=faceCv.getContext('2d');
-    fc.fillStyle='#1c1c1c';
-    fc.beginPath(); fc.ellipse(21,28,4.2,5.2,0,0,Math.PI*2); fc.fill();
-    fc.beginPath(); fc.ellipse(43,28,4.2,5.2,0,0,Math.PI*2); fc.fill();
-    fc.fillStyle='#c0392b'; fc.globalAlpha=0.55;
-    fc.beginPath(); fc.ellipse(14,38,4.5,3,0,0,Math.PI*2); fc.fill();
-    fc.beginPath(); fc.ellipse(50,38,4.5,3,0,0,Math.PI*2); fc.fill();
+    fc.scale(FS,FS);
+    // 眉
+    fc.strokeStyle='#2a1d14'; fc.lineWidth=3.4; fc.lineCap='round';
+    fc.beginPath(); fc.moveTo(22,30); fc.quadraticCurveTo(31,25,40,29); fc.stroke();
+    fc.beginPath(); fc.moveTo(56,29); fc.quadraticCurveTo(65,25,74,30); fc.stroke();
+    // 目(大きめ・つや入り)
+    fc.fillStyle='#241a12';
+    fc.beginPath(); fc.ellipse(31,42,6.4,7.8,0,0,Math.PI*2); fc.fill();
+    fc.beginPath(); fc.ellipse(65,42,6.4,7.8,0,0,Math.PI*2); fc.fill();
+    fc.fillStyle='#ffffff';
+    fc.beginPath(); fc.ellipse(33.2,38.5,2.0,2.4,0,0,Math.PI*2); fc.fill();
+    fc.beginPath(); fc.ellipse(67.2,38.5,2.0,2.4,0,0,Math.PI*2); fc.fill();
+    // 頬
+    fc.fillStyle='#e0717a'; fc.globalAlpha=0.5;
+    fc.beginPath(); fc.ellipse(20,56,6.5,4.2,0,0,Math.PI*2); fc.fill();
+    fc.beginPath(); fc.ellipse(76,56,6.5,4.2,0,0,Math.PI*2); fc.fill();
     fc.globalAlpha=1;
-    fc.strokeStyle='#1c1c1c'; fc.lineWidth=2.4; fc.lineCap='round';
-    fc.beginPath(); fc.arc(32,40,7,0.15*Math.PI,0.85*Math.PI); fc.stroke();
+    // 口(なめらかな弧)
+    fc.strokeStyle='#241a12'; fc.lineWidth=2.6; fc.lineCap='round'; fc.lineJoin='round';
+    fc.beginPath();
+    for (let a=0.12; a<=0.88; a+=0.02){
+      const ang=a*Math.PI, px=48+9*Math.cos(ang), py=58+9*Math.sin(ang);
+      if (a===0.12) fc.moveTo(px,py); else fc.lineTo(px,py);
+    }
+    fc.stroke();
     const faceTex=new THREE.CanvasTexture(faceCv);
+    faceTex.anisotropy = 4;
     this._npcFaceMat = new THREE.MeshBasicMaterial({map:faceTex, transparent:true, depthWrite:false});
     this._npcGeo = {
-      torso: new THREE.CylinderGeometry(0.155,0.135,0.44,8),
-      head: new THREE.SphereGeometry(0.155,10,8),
-      face: new THREE.PlaneGeometry(0.26,0.26),
-      hairCap: new THREE.SphereGeometry(0.168,9,7,0,Math.PI*2,0,Math.PI*0.62),
-      ponytail: new THREE.CylinderGeometry(0.05,0.07,0.4,6),
-      leg: (typeof THREE.CapsuleGeometry==='function') ? new THREE.CapsuleGeometry(0.052,0.34,3,6) : new THREE.CylinderGeometry(0.052,0.045,0.42,6),
-      arm: (typeof THREE.CapsuleGeometry==='function') ? new THREE.CapsuleGeometry(0.042,0.32,3,6) : new THREE.CylinderGeometry(0.042,0.036,0.36,6),
-      childBody: new THREE.CylinderGeometry(0.12,0.105,0.32,7),
-      childHead: new THREE.SphereGeometry(0.12,9,7),
-      childFace: new THREE.PlaneGeometry(0.2,0.2),
-      childLeg: new THREE.CylinderGeometry(0.038,0.033,0.26,6),
+      torso: new THREE.SphereGeometry(0.185,12,9),
+      head: new THREE.SphereGeometry(0.205,14,11),
+      face: new THREE.PlaneGeometry(0.33,0.33),
+      hairCap: new THREE.SphereGeometry(0.218,10,8,0,Math.PI*2,0,Math.PI*0.6),
+      hairFringe: new THREE.SphereGeometry(0.1,8,6),
+      ponytail: new THREE.CylinderGeometry(0.055,0.075,0.34,6),
+      skirt: new THREE.CylinderGeometry(0.24,0.15,0.28,10,1,true),
+      leg: (typeof THREE.CapsuleGeometry==='function') ? new THREE.CapsuleGeometry(0.058,0.28,3,6) : new THREE.CylinderGeometry(0.058,0.05,0.34,6),
+      arm: (typeof THREE.CapsuleGeometry==='function') ? new THREE.CapsuleGeometry(0.046,0.27,3,6) : new THREE.CylinderGeometry(0.046,0.04,0.32,6),
+      hand: new THREE.SphereGeometry(0.052,8,6),
+      shoe: new THREE.SphereGeometry(0.075,8,6),
+      childBody: new THREE.SphereGeometry(0.135,10,8),
+      childHead: new THREE.SphereGeometry(0.148,11,9),
+      childFace: new THREE.PlaneGeometry(0.24,0.24),
+      childLeg: new THREE.CylinderGeometry(0.04,0.036,0.22,6),
     };
     this.npcs=[];
-    for (let i=0;i<22;i++){
+    for (let i=0;i<9;i++){
       const grp=new THREE.Group();
       grp.visible=false; this.scene.add(grp);
       this.npcs.push({ grp, active:false, f:1, x:0, z:0, y:0, wps:[], wi:0, speed:1.1+Math.random()*0.6, dwell:0, arch:'adult_female', walkPhase:Math.random()*10, limbs:null });
@@ -992,37 +1115,52 @@ const M3D = {
     const geo = this._npcGeo;
     while (n.grp.children.length) n.grp.remove(n.grp.children[0]);
     const bodyColor = A.palette[Math.floor(Math.random()*A.palette.length)];
-    const legColorHex = '#'+new THREE.Color(bodyColor).lerp(new THREE.Color(0x2a2a2a), 0.55).getHexString();
+    const legColorHex = '#'+new THREE.Color(bodyColor).lerp(new THREE.Color(0x241f1a), 0.6).getHexString();
     const hairColor = A.hair[Math.floor(Math.random()*A.hair.length)];
     const bodyMat = this.litMat(bodyColor);
     const skinMat = this.litMat(A.skin);
     const hairMat = this.litMat(hairColor);
     const legMat = this.litMat(legColorHex);
+    const isFemale = (arch==='young_female'||arch==='adult_female');
+    const wearsSkirt = isFemale && Math.random()<0.45;
 
-    // 脚(股関節ピボット。歩行アニメーション用)
-    const legPivotY = 0.42;
-    const lLeg=new THREE.Group(); lLeg.position.set(-0.085, legPivotY, 0);
-    const lLegM=new THREE.Mesh(geo.leg, legMat); lLegM.position.y=-0.19; lLeg.add(lLegM); n.grp.add(lLeg);
-    const rLeg=new THREE.Group(); rLeg.position.set(0.085, legPivotY, 0);
-    const rLegM=new THREE.Mesh(geo.leg, legMat); rLegM.position.y=-0.19; rLeg.add(rLegM); n.grp.add(rLeg);
+    // 脚(股関節ピボット。歩行アニメーション用)+靴
+    const legPivotY = 0.32;
+    const lLeg=new THREE.Group(); lLeg.position.set(-0.09, legPivotY, 0);
+    const lLegM=new THREE.Mesh(geo.leg, wearsSkirt?skinMat:legMat); lLegM.position.y=-0.15; lLeg.add(lLegM);
+    const lShoe=new THREE.Mesh(geo.shoe, this.litMat(0x2a2420)); lShoe.position.y=-0.29; lShoe.scale.set(1,0.7,1.25); lLeg.add(lShoe);
+    n.grp.add(lLeg);
+    const rLeg=new THREE.Group(); rLeg.position.set(0.09, legPivotY, 0);
+    const rLegM=new THREE.Mesh(geo.leg, wearsSkirt?skinMat:legMat); rLegM.position.y=-0.15; rLeg.add(rLegM);
+    const rShoe=new THREE.Mesh(geo.shoe, this.litMat(0x2a2420)); rShoe.position.y=-0.29; rShoe.scale.set(1,0.7,1.25); rLeg.add(rShoe);
+    n.grp.add(rLeg);
 
-    // 胴体
-    const torso=new THREE.Mesh(geo.torso, bodyMat); torso.position.y=legPivotY+0.24; n.grp.add(torso);
+    // 胴体(丸みのあるシルエット)
+    const torso=new THREE.Mesh(geo.torso, bodyMat); torso.position.y=legPivotY+0.20; torso.scale.set(1,1.08,0.92); n.grp.add(torso);
+    if (wearsSkirt){
+      const skirt=new THREE.Mesh(geo.skirt, this.litMat(bodyColor)); skirt.position.y=legPivotY+0.08; n.grp.add(skirt);
+    }
 
-    // 腕(肩関節ピボット)
-    const armPivotY = legPivotY+0.42;
-    const lArm=new THREE.Group(); lArm.position.set(-0.185, armPivotY, 0);
-    const lArmM=new THREE.Mesh(geo.arm, skinMat); lArmM.position.y=-0.16; lArm.add(lArmM); n.grp.add(lArm);
-    const rArm=new THREE.Group(); rArm.position.set(0.185, armPivotY, 0);
-    const rArmM=new THREE.Mesh(geo.arm, skinMat); rArmM.position.y=-0.16; rArm.add(rArmM); n.grp.add(rArm);
+    // 腕(肩関節ピボット)+手
+    const armPivotY = legPivotY+0.33;
+    const lArm=new THREE.Group(); lArm.position.set(-0.205, armPivotY, 0);
+    const lArmM=new THREE.Mesh(geo.arm, bodyMat); lArmM.position.y=-0.14; lArm.add(lArmM);
+    const lHand=new THREE.Mesh(geo.hand, skinMat); lHand.position.y=-0.29; lArm.add(lHand);
+    n.grp.add(lArm);
+    const rArm=new THREE.Group(); rArm.position.set(0.205, armPivotY, 0);
+    const rArmM=new THREE.Mesh(geo.arm, bodyMat); rArmM.position.y=-0.14; rArm.add(rArmM);
+    const rHand=new THREE.Mesh(geo.hand, skinMat); rHand.position.y=-0.29; rArm.add(rHand);
+    n.grp.add(rArm);
 
-    // 頭・髪・顔
-    const headY = armPivotY+0.19;
+    // 頭・髪・顔(大きめの頭でちびキャラ比率に)
+    const headY = armPivotY+0.20;
     const head=new THREE.Mesh(geo.head, skinMat); head.position.y=headY; n.grp.add(head);
-    const hair=new THREE.Mesh(geo.hairCap, hairMat); hair.position.y=headY+0.07; hair.rotation.x=Math.PI; n.grp.add(hair);
-    const face=new THREE.Mesh(geo.face, this._npcFaceMat); face.position.set(0, headY, 0.145); n.grp.add(face);
-    if (arch==='young_female' && Math.random()<0.4){
-      const pt=new THREE.Mesh(geo.ponytail, hairMat); pt.position.set(0, headY-0.12, -0.17); pt.rotation.x=0.55; n.grp.add(pt);
+    const hairScale = arch==='senior' ? 0.86 : (arch==='kids_family' ? 0.95 : 1.0);
+    const hair=new THREE.Mesh(geo.hairCap, hairMat); hair.position.y=headY+0.075; hair.rotation.x=Math.PI; hair.scale.setScalar(hairScale); n.grp.add(hair);
+    const fringe=new THREE.Mesh(geo.hairFringe, hairMat); fringe.position.set(0, headY+0.11, 0.17); fringe.scale.set(1.3,0.8,0.7); n.grp.add(fringe);
+    const face=new THREE.Mesh(geo.face, this._npcFaceMat); face.position.set(0, headY-0.01, 0.218); n.grp.add(face);
+    if (arch==='young_female' && Math.random()<0.45){
+      const pt=new THREE.Mesh(geo.ponytail, hairMat); pt.position.set(0, headY-0.1, -0.2); pt.rotation.x=0.6; n.grp.add(pt);
     }
     n.grp.scale.setScalar(A.height * (0.94+Math.random()*0.12));
     n.limbs = { lLeg, rLeg, lArm, rArm };
@@ -1030,15 +1168,15 @@ const M3D = {
     if (arch==='kids_family'){
       const kidPalette = A.palette;
       const kidMat = this.litMat(kidPalette[(Math.floor(Math.random()*kidPalette.length)+1)%kidPalette.length]);
-      const kx=0.42, kLegY=0.24;
+      const kx=0.44, kLegY=0.20;
       const cGrp = new THREE.Group(); cGrp.position.set(kx, 0, 0.1); n.grp.add(cGrp);
-      const clLeg=new THREE.Group(); clLeg.position.set(-0.06,kLegY,0); const clLegM=new THREE.Mesh(geo.childLeg,legMat); clLegM.position.y=-0.13; clLeg.add(clLegM); cGrp.add(clLeg);
-      const crLeg=new THREE.Group(); crLeg.position.set(0.06,kLegY,0); const crLegM=new THREE.Mesh(geo.childLeg,legMat); crLegM.position.y=-0.13; crLeg.add(crLegM); cGrp.add(crLeg);
-      const cBody=new THREE.Mesh(geo.childBody, kidMat); cBody.position.y=kLegY+0.17; cGrp.add(cBody);
-      const cHeadY=kLegY+0.34;
+      const clLeg=new THREE.Group(); clLeg.position.set(-0.06,kLegY,0); const clLegM=new THREE.Mesh(geo.childLeg,legMat); clLegM.position.y=-0.11; clLeg.add(clLegM); cGrp.add(clLeg);
+      const crLeg=new THREE.Group(); crLeg.position.set(0.06,kLegY,0); const crLegM=new THREE.Mesh(geo.childLeg,legMat); crLegM.position.y=-0.11; crLeg.add(crLegM); cGrp.add(crLeg);
+      const cBody=new THREE.Mesh(geo.childBody, kidMat); cBody.position.y=kLegY+0.14; cBody.scale.set(1,1.05,0.95); cGrp.add(cBody);
+      const cHeadY=kLegY+0.32;
       const cHead=new THREE.Mesh(geo.childHead, skinMat); cHead.position.y=cHeadY; cGrp.add(cHead);
-      const cHair=new THREE.Mesh(geo.hairCap, hairMat); cHair.position.y=cHeadY+0.06; cHair.rotation.x=Math.PI; cHair.scale.setScalar(0.82); cGrp.add(cHair);
-      const cFace=new THREE.Mesh(geo.childFace, this._npcFaceMat); cFace.position.set(0,cHeadY,0.115); cGrp.add(cFace);
+      const cHair=new THREE.Mesh(geo.hairCap, hairMat); cHair.position.y=cHeadY+0.055; cHair.rotation.x=Math.PI; cHair.scale.setScalar(0.86); cGrp.add(cHair);
+      const cFace=new THREE.Mesh(geo.childFace, this._npcFaceMat); cFace.position.set(0,cHeadY-0.01,0.158); cGrp.add(cFace);
       n.childLimbs = { lLeg:clLeg, rLeg:crLeg };
     } else n.childLimbs = null;
     n.arch = arch;
@@ -1126,7 +1264,7 @@ const M3D = {
   updateNPC(dt){
     const st=SIM.st;
     const density = Math.min(1.4, st.todayVisitors/16000) * SIM.hourMul();
-    const want=Math.round(4+density*20);
+    const want=Math.round(2+density*7);
     const active=this.npcs.filter(n=>n.active).length;
     if (active<want && Math.random()<0.10) this.spawnNPC();
     for (const n of this.npcs){
