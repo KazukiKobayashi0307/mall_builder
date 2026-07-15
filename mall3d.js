@@ -314,6 +314,8 @@ const M3D = {
         const bx = -66 + i*66;
         this.plane(9,0.85, this.signMat(bannerTexts[i%bannerTexts.length], '#ffffff', '#5a4a3a', {fs:34,border:'#c9c2ae'}), bx, y+FH-1.0, 0, 0, g);
       }
+      // カラフルな三角旗の飾り付け
+      this.addBunting(g, -88, 88, 0, y+FH-0.6);
     }
 
     // ===== エスカレーター =====
@@ -521,6 +523,44 @@ const M3D = {
     { const pm=new THREE.Matrix4(); let pi=0;
       for (const zz of [rz+11, rz-11]) for (const b of bounds){ pm.makeTranslation(b, 3, zz); parts.setMatrixAt(pi++, pm); } }
     g.add(parts);
+    this.addBunting(g, B.originX+3, B.originX+B.rowLen-3, rz, 5.3);
+    this.addCorridorGreenery(g, B.originX, B.rowLen, rz);
+  },
+  // カラフルな三角旗の飾り付け(天井から吊り下げ、彩りを足す)
+  addBunting(g, x0, x1, rz, y){
+    const flagPal=[0xe0384a,0xf0a020,0xf0d020,0x3aa860,0x2a8fd0,0xa040c0,0xe0508f];
+    const pts=[]; for (let x=x0; x<=x1; x+=1.1) pts.push(x);
+    if (!pts.length) return;
+    const dummy=new THREE.Object3D();
+    const sets = flagPal.map(hex=>new THREE.InstancedMesh(new THREE.ConeGeometry(0.34,0.4,3), this.litMat(hex), Math.ceil(pts.length/flagPal.length)+1));
+    const counts=flagPal.map(()=>0);
+    pts.forEach((x,i)=>{
+      const ci=i%flagPal.length;
+      const sag=Math.sin((x-x0)/(x1-x0)*Math.PI)*0.35;
+      dummy.position.set(x, y-sag, rz); dummy.rotation.set(Math.PI, 0, (i%2?0.15:-0.15)); dummy.updateMatrix();
+      sets[ci].setMatrixAt(counts[ci]++, dummy.matrix);
+    });
+    sets.forEach((m,i)=>{ m.count=counts[i]; g.add(m); });
+    const wireMat=this.basicMat(0xc9c2b0);
+    this.box(x1-x0, 0.02, 0.02, wireMat, (x0+x1)/2, y, rz, g);
+  },
+  // 通路の植栽・ベンチ(outlet/mori棟用、緑を足して殺風景さを軽減)
+  addCorridorGreenery(g, originX, rowLen, rz){
+    const dummy=new THREE.Object3D();
+    const pts=[]; for (let x=originX+10; x<=originX+rowLen-10; x+=16) pts.push(x);
+    if (!pts.length) return;
+    const pots=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.42,0.36,0.5,10), this.MAT.white, pts.length);
+    const bushA=new THREE.InstancedMesh(new THREE.SphereGeometry(0.55,10,8), this.litMat(0x4e8d43), pts.length);
+    const bushB=new THREE.InstancedMesh(new THREE.SphereGeometry(0.34,8,6), this.litMat(0x6fae4a), pts.length);
+    const benches=new THREE.InstancedMesh(new THREE.BoxGeometry(2.0,0.42,0.6), this.MAT.wood, pts.length);
+    pts.forEach((x,i)=>{
+      const zz = i%2? rz+2.6 : rz-2.6;
+      dummy.position.set(x,0.25,zz); dummy.rotation.set(0,0,0); dummy.updateMatrix(); pots.setMatrixAt(i,dummy.matrix);
+      dummy.position.set(x,0.85,zz); dummy.updateMatrix(); bushA.setMatrixAt(i,dummy.matrix);
+      dummy.position.set(x+0.3,1.05,zz+0.2); dummy.updateMatrix(); bushB.setMatrixAt(i,dummy.matrix);
+      dummy.position.set(x, 0.21, i%2? rz-2.6 : rz+2.6); dummy.updateMatrix(); benches.setMatrixAt(i,dummy.matrix);
+    });
+    g.add(pots); g.add(bushA); g.add(bushB); g.add(benches);
   },
   buildOutlet(){
     const B = BUILDINGS.outlet, g=this.gFloors[1];
@@ -1152,8 +1192,8 @@ const M3D = {
     }
     // 側道ストリップ上(通路内含む)
     if (x>=-95.5 && x<=95.5 && Math.abs(z)>=2.6 && Math.abs(z)<CF-0.1) return true;
-    // 東ホール
-    if (f===1 && x>95.5 && x<=99 && Math.abs(z)<5) return true;
+    // 東ホール(センターブリッジへの接続部まで確実につなげる)
+    if (f===1 && x>95.5 && x<=106 && Math.abs(z)<CF) return true;
     // GMS/シネマ
     if (x>=-128 && x<=-96.6 && Math.abs(z)<16){
       if (f<=2) return true;
