@@ -12,6 +12,7 @@ const M3D = {
   clock:null, _running:false, container:null,
 
   FH:6, // 階高
+  CORR_FRONT:5.4, // 通路中心から店舗ファサードまでの距離(通路の広さ)
   ESC: {
     W: { x0:-38, x1:-26, fLow:1, upZ:-1.7, dnZ:1.7 },
     E: { x0:26,  x1:38,  fLow:2, upZ:-1.7, dnZ:1.7 },
@@ -690,6 +691,8 @@ const M3D = {
     stall:    ['#d4382c','#c98a12','#2c7dd4','#2f9a55'],
     tech:     ['#00d4b8','#e0208f','#7a2fe0','#1fa0e0'],
     plain:    ['#6a6a6a','#5a7a8a','#7a6a5a','#5a6a5a'],
+    kuzefuku: ['#c9a24a','#b8923f','#d4ae54','#a8863a'],
+    drug:     ['#d81b6b','#e0207a','#c9155e','#e8407f'],
   },
   tenantAccent(t, facade){
     const pal = this.FACADE_PALETTES[facade] || this.FACADE_PALETTES.plain;
@@ -701,7 +704,7 @@ const M3D = {
     // LOD遠景版: 安価な看板ボックスのみ(店構えの作り込みは近くに寄った時だけ)
     const M=this.MAT;
     const rz=u.rowZ||0;
-    const cx=(u.x0+u.x1)/2, front = rz+(u.side==='N'? 4 : -4), dirn = u.side==='N'? 1 : -1;
+    const cx=(u.x0+u.x1)/2, front = rz+(u.side==='N'? this.CORR_FRONT : -this.CORR_FRONT), dirn = u.side==='N'? 1 : -1;
     const faceRy = u.side==='N'? Math.PI : 0;
     if (u.state==='open' && u.ten){
       const col = this.catColor(u.ten.cat);
@@ -716,7 +719,7 @@ const M3D = {
     if (u._lod==='far'){ this.buildShopUnitSimple(u,g,y); return; }
     const M=this.MAT;
     const rz=u.rowZ||0;
-    const cx=(u.x0+u.x1)/2, front = rz+(u.side==='N'? 4 : -4), dirn = u.side==='N'? 1 : -1;
+    const cx=(u.x0+u.x1)/2, front = rz+(u.side==='N'? this.CORR_FRONT : -this.CORR_FRONT), dirn = u.side==='N'? 1 : -1;
     const faceRy = u.side==='N'? Math.PI : 0;
     if (u.state==='open' && u.ten){
       const t = u.ten;
@@ -780,6 +783,15 @@ const M3D = {
     } else if (kind==='counter'){
       this.box(u.w*0.5, 1.0, 0.55, inMat, cx, y+0.5, front+dirn*2.7, g);
       this.box(u.w*0.5, 0.06, 0.55, accMat, cx, y+1.02, front+dirn*2.7, g);
+    } else if (kind==='island'){ // 中央木製陳列アイランド(久世福商店風)
+      const woodMat = this.litMat('#8a6a3a');
+      this.box(1.0,1.7,1.0, woodMat, cx, y+0.85, front+dirn*6.5, g);
+      for (let lv=0; lv<3; lv++){
+        this.box(1.4,0.06,1.4, accMat, cx, y+0.35+lv*0.5, front+dirn*6.5, g);
+      }
+      for (const [dx,dz] of [[-0.9,0],[0.9,0],[0,-0.9],[0,0.9]]){
+        this.box(0.7,1.1,0.4, inMat, cx+dx, y+0.55, front+dirn*6.5+dz, g);
+      }
     } else {
       this.box(u.w*0.55, 1.25, 0.9, inMat, cx, y+0.63, front+dirn*4, g);
       this.box(u.w*0.55, 1.25, 0.9, inMat, cx, y+0.63, front+dirn*7.5, g);
@@ -915,6 +927,49 @@ const M3D = {
       this.box(u.w-0.5, 2.6, 0.06, M.glass, cx, y+1.4, front+dirn*0.06, g);
       this.box(u.w-0.6, 1.1, 0.7, this.litMat(accent), cx, y+0.55, front+dirn*2.2, g);
       this.storeInterior(ctx, 0.78, 'counter');
+    },
+    // 高級和風食品・雑貨店(久世福商店を参考): 濃紺×木目×金看板、中央木製アイランド什器
+    kuzefuku(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
+      const navy = this.litMat('#1c2233');
+      this.box(u.w-0.3, 1.7, 0.24, navy, cx, y+4.25, front+dirn*0.08, g);
+      this.box(u.w-0.9, 0.06, 0.3, this.litMat(accent), cx, y+4.75, front+dirn*0.18, g);
+      this.box(u.w-0.9, 0.06, 0.3, this.litMat(accent), cx, y+3.75, front+dirn*0.18, g);
+      this.plane(u.w-1.3, 0.85, this.signMat(t.name, '#1c2233', accent, {fs:38}), cx, y+4.25, front+dirn*0.22, faceRy, g);
+      // 木の梁(軒先)
+      for (let i=-2;i<=2;i++) this.box(0.14,0.14,1.2, this.litMat('#6b4a28'), cx+i*u.w*0.18, y+3.3, front+dirn*0.55, g).rotation.x=0.05;
+      this.storeGlass(ctx, u.w*0.32);
+      // 紺の暖簾(片側)
+      const norenMat = new THREE.MeshLambertMaterial({color:'#1c3a5e', side:THREE.DoubleSide});
+      this.plane(u.w*0.16, 1.3, norenMat, u.x1-u.w*0.14, y+2.55, front+dirn*0.5, faceRy, g);
+      // ペンダント照明
+      for (const off of [-0.25,0.25]){
+        const px=cx+u.w*off;
+        this.box(0.03,0.9,0.03, M.dark, px, y+4.0, front+dirn*4.5, g);
+        const shade=new THREE.Mesh(new THREE.ConeGeometry(0.22,0.22,10), this.litMat('#e8dcc0'));
+        shade.position.set(px, y+3.5, front+dirn*4.5); g.add(shade);
+      }
+      this.storeBladeSign(ctx, '#1c2233', accent);
+      this.storeInterior(ctx, 0.55, 'island');
+    },
+    // ドラッグストア(マゼンタ帯+明るい照明+陳列棚を参考)
+    drug(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
+      this.box(u.w-0.2, 1.1, 0.22, this.litMat(accent), cx, y+4.45, front+dirn*0.09, g);
+      this.plane(u.w-0.8, 0.85, this.signMat(t.name, accent, '#ffffff', {fs:44}), cx, y+4.45, front+dirn*0.22, faceRy, g);
+      this.box(u.w-0.5, 3.6, 0.06, M.glass, cx, y+1.9, front+dirn*0.06, g);
+      // 明るい照明(通常より多め)
+      for (let i=0;i<3;i++){
+        const lp=this.plane(1.6,0.5, M.lightP, u.x0+1.2+i*(u.w-2.4)/2, y+4.9, front+dirn*4, 0, g); lp.rotation.x=Math.PI/2;
+      }
+      // 入口脇のカゴ置き場
+      const basketMat=this.litMat('#2a2a2a');
+      for (let i=0;i<3;i++){
+        const bk=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.18,0.3,8), basketMat);
+        bk.position.set(u.x0+0.5+i*0.34, y+0.4, front+dirn*1.6); g.add(bk);
+      }
+      this.storeBladeSign(ctx, accent, '#ffffff');
+      this.storeInterior(ctx, 0.82, 'gondola');
     },
   },
 
@@ -1089,13 +1144,14 @@ const M3D = {
 
   // ---------- 歩行 ----------
   walkableAt(x,z,f){
+    const CF=this.CORR_FRONT;
     // 通路(kaze棟)
-    if (x>=-95.5 && x<=95.5 && Math.abs(z)<3.9){
+    if (x>=-95.5 && x<=95.5 && Math.abs(z)<CF-0.1){
       if (this.holesAt(f,x,z)) return this.rampAt(x,z)!==null;
       return true;
     }
     // 側道ストリップ上(通路内含む)
-    if (x>=-95.5 && x<=95.5 && Math.abs(z)>=2.6 && Math.abs(z)<3.9) return true;
+    if (x>=-95.5 && x<=95.5 && Math.abs(z)>=2.6 && Math.abs(z)<CF-0.1) return true;
     // 東ホール
     if (f===1 && x>95.5 && x<=99 && Math.abs(z)<5) return true;
     // GMS/シネマ
@@ -1110,7 +1166,7 @@ const M3D = {
         const B = BUILDINGS[bldKey];
         for (const rz0 of B.rows){
           const rz = B.originZ+rz0;
-          if (x>=B.originX-1 && x<=B.originX+B.rowLen+1 && Math.abs(z-rz)<3.9) return true;
+          if (x>=B.originX-1 && x<=B.originX+B.rowLen+1 && Math.abs(z-rz)<CF-0.1) return true;
         }
         const zMin = B.originZ+Math.min(...B.rows)-4, zMax = B.originZ+Math.max(...B.rows)+4;
         for (const cxOff of [B.rowLen*0.12, B.rowLen*0.88]){
@@ -1134,14 +1190,15 @@ const M3D = {
       if (x<u.x0+0.35 || x>u.x1-0.35) continue;
       const dirn = u.side==='N'?1:-1;
       const zi = (z-(u.rowZ||0))*dirn;
+      const df = CF - 4; // 拡幅分のオフセット
       if (u.kind==='ent'){
-        if (zi>=3.9 && zi<=17.9) return true;
+        if (zi>=CF && zi<=17.9+df) return true;
         continue;
       }
       if (u.state!=='open') continue;
       const cx=(u.x0+u.x1)/2, doorHalf=Math.max(1.2, u.w*0.18);
-      if (zi>=3.9 && zi<=4.6 && Math.abs(x-cx)<doorHalf) return true; // ドア
-      if (zi>4.6 && zi<=13.2) return true; // 店内
+      if (zi>=CF && zi<=CF+0.7 && Math.abs(x-cx)<doorHalf) return true; // ドア
+      if (zi>CF+0.7 && zi<=13.2+df) return true; // 店内
     }
     return false;
   },
@@ -1156,7 +1213,7 @@ const M3D = {
     const len=Math.hypot(mx,mz);
     if (len>0.01){
       mx/=Math.max(len,1); mz/=Math.max(len,1);
-      const sp=(k['ShiftLeft']||k['ShiftRight'])?6.4:3.9;
+      const sp=(k['ShiftLeft']||k['ShiftRight'])?10.5:6.0;
       const s=Math.sin(p.yaw), c=Math.cos(p.yaw);
       const dx=(mz*-s + mx*c)*sp*dt;
       const dz=(mz*-c - mx*s)*sp*dt;
@@ -1179,7 +1236,7 @@ const M3D = {
     for (const u of SIM.st.units){
       if (u.floor!==p.f || !u.ten || u.state!=='open') continue;
       const cx = u.kind==='gms'||u.kind==='cinema' ? -100 : (u.x0+u.x1)/2;
-      const cz = u.kind==='gms'||u.kind==='cinema' ? 0 : (u.rowZ||0)+(u.side==='N'?4:-4);
+      const cz = u.kind==='gms'||u.kind==='cinema' ? 0 : (u.rowZ||0)+(u.side==='N'?this.CORR_FRONT:-this.CORR_FRONT);
       const d=Math.hypot(p.x-cx, p.z-cz);
       if (d<bd){ bd=d; best=u; }
     }
@@ -1320,7 +1377,7 @@ const M3D = {
     } else n.childLimbs = null;
     n.arch = arch;
   },
-  laneZ(z){ return z>=0? 3.2 : -3.2; },
+  laneZ(z){ return z>=0? 4.3 : -4.3; },
   crossX(f, x){
     if (f===1) return x;
     if (f===2){
@@ -1337,14 +1394,14 @@ const M3D = {
   addMoveTo(n, tx, tz){
     const f=n._pf;
     const fromZ = n._pz, fromX = n._px;
-    const sameSide = (fromZ>=0)===(tz>=0) || Math.abs(tz)<2.7;
+    const sameSide = (fromZ>=0)===(tz>=0) || Math.abs(tz)<3.6;
     if (!sameSide){
       const cx=this.crossX(f, (fromX+tx)/2);
       n.wps.push({x:cx, z:this.laneZ(fromZ), f});
       n.wps.push({x:cx, z:this.laneZ(tz), f});
     }
-    n.wps.push({x:tx, z:this.laneZ(tz)===this.laneZ(fromZ)&&Math.abs(tz)>2.7? tz : this.laneZ(tz), f});
-    if (Math.abs(tz)>3.9 || Math.abs(tz)<2.7) n.wps.push({x:tx, z:tz, f});
+    n.wps.push({x:tx, z:this.laneZ(tz)===this.laneZ(fromZ)&&Math.abs(tz)>3.6? tz : this.laneZ(tz), f});
+    if (Math.abs(tz)>this.CORR_FRONT-0.1 || Math.abs(tz)<3.6) n.wps.push({x:tx, z:tz, f});
     n._px=tx; n._pz=tz;
   },
   addFloorChange(n, toF){
@@ -1363,6 +1420,13 @@ const M3D = {
   spawnNPC(){
     const n=this.npcs.find(n=>!n.active);
     if (!n) return;
+    // kaze棟とoutlet/mori棟を人数比に応じて振り分け
+    const bldRoll = Math.random();
+    if (bldRoll < 0.55) this.spawnNPCKaze(n);
+    else this.spawnNPCRowBuilding(n, bldRoll<0.78 ? 'outlet' : 'mori');
+  },
+  spawnNPCKaze(n){
+    const CF=this.CORR_FRONT;
     const ents=[{x:8,z:-16,f:1},{x:8,z:16,f:1},{x:97,z:0,f:1}];
     const ent=ents[Math.random()<0.45?0:(Math.random()<0.55?2:1)];
     n.active=true; n.f=ent.f; n.x=ent.x; n.z=ent.z; n.y=0; n.dwell=0; n.walkPhase=Math.random()*10;
@@ -1370,8 +1434,8 @@ const M3D = {
     const arch = this.sampleArchetype();
     this.buildNpcVisual(n, arch);
     n.grp.position.set(n.x, n.y, n.z);
-    // 訪問先を1〜3店選ぶ(集客力×客層の相性で加重)
-    const open=SIM.st.units.filter(u=>u.state==='open'&&u.ten);
+    // 訪問先を1〜3店選ぶ(集客力×客層の相性で加重、kaze棟内のみ)
+    const open=SIM.st.units.filter(u=>u.state==='open'&&u.ten&&u.bld==='kaze');
     if (!open.length){ n.active=false; return; }
     const targets=[];
     const count=1+Math.floor(Math.random()*3);
@@ -1388,16 +1452,56 @@ const M3D = {
       if (u.kind==='gms'||u.kind==='cinema'){ dx=-101; dz=0; this.addMoveTo(n, -90, 0); n.wps.push({x:dx,z:dz,f:n._pf,dwell:3+Math.random()*4}); n._px=dx; n._pz=dz; }
       else {
         dx=(u.x0+u.x1)/2; const dirn=u.side==='N'?1:-1;
-        this.addMoveTo(n, dx, dirn*3.2);
-        n.wps.push({x:dx, z:dirn*(u.state==='open'?7:4), f:n._pf, dwell:2.5+Math.random()*4});
-        n.wps.push({x:dx, z:dirn*3.2, f:n._pf});
-        n._px=dx; n._pz=dirn*3.2;
+        this.addMoveTo(n, dx, dirn*4.3);
+        n.wps.push({x:dx, z:dirn*(u.state==='open'?CF+2.6:CF), f:n._pf, dwell:2.5+Math.random()*4});
+        n.wps.push({x:dx, z:dirn*4.3, f:n._pf});
+        n._px=dx; n._pz=dirn*4.3;
       }
     }
     if (n._pf!==1) this.addFloorChange(n, 1);
     const ex=ents[Math.floor(Math.random()*3)];
     this.addMoveTo(n, ex.x, ex.z);
     n.wps.push({x:ex.x, z:ex.z+(ex.z>10?4:(ex.z<-10?-4:0)), f:1, exit:true});
+    n.grp.visible=this.gFloors[1].visible;
+  },
+  spawnNPCRowBuilding(n, bldKey){
+    const CF=this.CORR_FRONT;
+    const B = BUILDINGS[bldKey];
+    const open = SIM.st.units.filter(u=>u.state==='open'&&u.ten&&u.bld===bldKey);
+    if (!open.length) return;
+    const entRow = B.rows[Math.floor(Math.random()*B.rows.length)];
+    const entRz = B.originZ+entRow;
+    const fromWest = Math.random()<0.5;
+    const entX = fromWest ? B.originX-1 : B.originX+B.rowLen+1;
+    n.active=true; n.f=1; n.x=entX; n.z=entRz; n.y=0; n.dwell=0; n.walkPhase=Math.random()*10;
+    n.wps=[]; n.wi=0; n._px=entX; n._pz=entRz; n._pf=1;
+    const arch = this.sampleArchetype();
+    this.buildNpcVisual(n, arch);
+    n.grp.position.set(n.x, n.y, n.z);
+    const targets=[]; const count=1+Math.floor(Math.random()*2);
+    for (let i=0;i<count;i++){
+      let tw=0; for (const u of open) tw += u.ten.attract * SIM.tenantAppeal(u.ten, arch);
+      let r=Math.random()*tw, pick=open[0];
+      for (const u of open){ r -= u.ten.attract * SIM.tenantAppeal(u.ten, arch); if(r<=0){ pick=u; break; } }
+      targets.push(pick);
+    }
+    for (const u of targets){
+      const dx=(u.x0+u.x1)/2, dirn=u.side==='N'?1:-1, rz=u.rowZ||0;
+      if (Math.abs(rz-n._pz)>1){
+        // 別の通路列へ:端の連絡通路を経由
+        const cxOff = n._px<dx ? B.rowLen*0.12 : B.rowLen*0.88;
+        const cx = B.originX+cxOff;
+        n.wps.push({x:cx, z:n._pz, f:1});
+        n.wps.push({x:cx, z:rz, f:1});
+        n._px=cx; n._pz=rz;
+      }
+      n.wps.push({x:dx, z:rz+dirn*4.3, f:1});
+      n.wps.push({x:dx, z:rz+dirn*(u.state==='open'?CF+2.6:CF), f:1, dwell:2.5+Math.random()*4});
+      n.wps.push({x:dx, z:rz+dirn*4.3, f:1});
+      n._px=dx; n._pz=rz+dirn*4.3;
+    }
+    const exitX = Math.random()<0.5 ? B.originX-1 : B.originX+B.rowLen+1;
+    n.wps.push({x:exitX, z:n._pz, f:1, exit:true});
     n.grp.visible=this.gFloors[1].visible;
   },
   updateNPC(dt){

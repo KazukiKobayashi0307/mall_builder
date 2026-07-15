@@ -47,7 +47,7 @@ const DEMO_LABEL = {
   young:'若年層(男女)', young_female:'若年女性', young_male:'若年男性',
   family:'ファミリー層', senior:'シニア層', adult_female:'成人女性', adult_male:'成人男性',
 };
-// テナントの外観アーキタイプ一覧(mall3dの店構え生成に対応): glass/bold/boutique/warm/kids/noren/stall/tech/plain
+// テナントの外観アーキタイプ一覧(mall3dの店構え生成に対応): glass/bold/boutique/warm/kids/noren/stall/tech/plain/kuzefuku/drug
 
 // サイズ区分: 区画幅(m)とテナント規模の対応
 const SIZES = {
@@ -80,6 +80,7 @@ const TENANTS = [
   { id:'decorie',  name:'デコリエ',              cat:'variety', size:'L', attract:5, rate:0.08, minRent:240, pull:1.7, facade:'warm', demo:'adult_female', desc:'低価格ホームファッション。' },
   { id:'franfleur',name:'フランフルール',         cat:'variety', size:'M', attract:4, rate:0.11, minRent:170, pull:1.2, facade:'boutique', demo:'young_female', desc:'ときめきインテリア雑貨。' },
   { id:'seikatsukan',name:'くらしの器 やまと屋',  cat:'variety', size:'S', attract:3, rate:0.09, minRent:100, pull:0.8, facade:'warm', demo:'senior', desc:'和食器と台所道具。' },
+  { id:'kikufuku',  name:'喜久福商店',           cat:'variety', size:'M', attract:6, rate:0.10, minRent:190, pull:1.9, facade:'kuzefuku', demo:'adult_female', desc:'全国の逸品を集めた食品・雑貨のセレクトショップ。福袋が名物。' },
   // --- カフェ・スイーツ ---
   { id:'starpacks',name:'スターパックスコーヒー', cat:'cafe', size:'S', attract:6, rate:0.11, minRent:140, pull:2.4, facade:'warm', demo:'young', desc:'言わずと知れたシアトル系。モールの顔。' },
   { id:'torleys',  name:'トーリーズコーヒー',     cat:'cafe', size:'S', attract:4, rate:0.10, minRent:110, pull:1.3, facade:'warm', demo:'adult_female', desc:'落ち着いた大人のカフェ。' },
@@ -122,6 +123,7 @@ const TENANTS = [
   { id:'tabisuke', name:'旅工房タビスケ',         cat:'service', size:'S', attract:2, rate:0.10, minRent:90,  pull:0.6, facade:'plain', demo:'senior', desc:'旅行代理店。' },
   { id:'onaoshi',  name:'お直しコンシェル',       cat:'service', size:'S', attract:2, rate:0.10, minRent:85,  pull:0.6, facade:'plain', demo:'senior', desc:'洋服のお直しと合鍵。地味に必須。' },
   { id:'mallpharm',name:'モール調剤薬局',         cat:'service', size:'S', attract:3, rate:0.09, minRent:100, pull:1.0, facade:'plain', demo:'senior', desc:'処方箋も市販薬も。高齢客の来館理由。' },
+  { id:'harmonydrug',name:'ハーモニードラッグ',    cat:'service', size:'L', attract:6, rate:0.08, minRent:230, pull:2.0, facade:'drug', demo:'adult_female', desc:'医薬品からコスメ・日用品まで。毎日の買い物が集まる大型ドラッグストア。' },
   // --- アミューズ ---
   { id:'bamco',    name:'バムコワンダーパーク',   cat:'amuse', size:'L', attract:6, rate:0.10, minRent:260, pull:2.2, facade:'tech', demo:'young_male', desc:'クレーンゲームの森。景品原価との戦い。' },
 ];
@@ -146,9 +148,9 @@ const TENANTS = [
     gms_living:{ pre:['くらし','ホーム','リビング'], suf:['館','プラザ','センター'] },
   };
   const FACADE_POOL = {
-    fashion:['glass','bold','boutique'], variety:['glass','bold','boutique','warm'], cafe:['warm','kids'],
+    fashion:['glass','bold','boutique'], variety:['glass','bold','boutique','warm','kuzefuku'], cafe:['warm','kids'],
     gourmet:['noren'], foodcourt:['stall'], hobby:['tech','warm','bold'], kids:['kids'],
-    service:['plain','tech'], amuse:['tech','bold'], gms_food:['glass'], gms_living:['glass'],
+    service:['plain','tech','drug'], amuse:['tech','bold'], gms_food:['glass','kuzefuku'], gms_living:['glass'],
   };
   const DEMO_POOL = ['young','young_female','young_male','family','senior','adult_female','adult_male', null, null];
   const BASE_STAT = {
