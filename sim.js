@@ -22,6 +22,32 @@ const SIM = {
   _catNorm: null,
 
   // ---------- 区画生成 ----------
+  genSeq(totalLen){
+    const seq=[]; let sum=0, i=0;
+    while (sum < totalLen-6){
+      const w = UNIT_PATTERN[i%UNIT_PATTERN.length];
+      if (sum+w > totalLen) break;
+      seq.push(w); sum+=w; i++;
+    }
+    return seq;
+  },
+  buildRowUnits(units, bld, idPrefix, floor, rowLocalZ, rowLen, fcSide, fcFrom){
+    const B = BUILDINGS[bld];
+    const seq = this.genSeq(rowLen);
+    for (const side of ['N','S']){
+      let x = 0, idx = 0;
+      for (const w of seq){
+        idx++;
+        const tier = w===8?'S':(w===12?'M':'L');
+        let kind = 'shop';
+        if (fcSide && side===fcSide && x>=fcFrom) kind = 'fc';
+        units.push({ id: idPrefix+floor+side+rowLocalZ+'_'+String(idx).padStart(2,'0'), floor, side, bld,
+                     x0: B.originX+x, x1: B.originX+x+w, w, tier, kind, rowZ: B.originZ+rowLocalZ,
+                     ten:null, state:'vacant', fitDays:0, monthsBad:0, monthSales:0, todaySales:0, lastMonthSales:0, lastRent:0, sat:70, openedDay:0 });
+        x += w;
+      }
+    }
+  },
   buildUnits(rng){
     const seq = [12,8,8,20,8,12,8,20,8,8,12,8,20,12,8,12];
     const units = [];
@@ -34,15 +60,21 @@ const SIM = {
           let kind = 'shop';
           if (f===3 && side==='N' && x>=40) kind = 'fc';
           if (f===1 && x===4 && w===8) kind = 'ent'; // 北口・南口(入口通路)
-          units.push({ id: f+side+String(idx).padStart(2,'0'), floor:f, side, x0:x, x1:x+w, w, tier, kind,
+          units.push({ id: f+side+String(idx).padStart(2,'0'), floor:f, side, bld:'kaze', x0:x, x1:x+w, w, tier, kind, rowZ:0,
                        ten:null, state:'vacant', fitDays:0, monthsBad:0, monthSales:0, todaySales:0, lastMonthSales:0, lastRent:0, sat:70, openedDay:0 });
           x += w;
         }
       }
     }
-    units.push({ id:'GMS1', floor:1, side:'W', x0:-130, x1:-96, w:34, tier:'XL', kind:'gms', ten:null, state:'open', fitDays:0, monthsBad:0, monthSales:0, todaySales:0, lastMonthSales:0, lastRent:0, sat:80, openedDay:0 });
-    units.push({ id:'GMS2', floor:2, side:'W', x0:-130, x1:-96, w:34, tier:'XL', kind:'gms', ten:null, state:'open', fitDays:0, monthsBad:0, monthSales:0, todaySales:0, lastMonthSales:0, lastRent:0, sat:80, openedDay:0 });
-    units.push({ id:'CINE', floor:3, side:'W', x0:-130, x1:-96, w:34, tier:'XL', kind:'cinema', ten:null, state:'vacant', fitDays:0, monthsBad:0, monthSales:0, todaySales:0, lastMonthSales:0, lastRent:0, sat:70, openedDay:0 });
+    units.push({ id:'GMS1', floor:1, side:'W', bld:'kaze', x0:-130, x1:-96, w:34, tier:'XL', kind:'gms', rowZ:0, ten:null, state:'open', fitDays:0, monthsBad:0, monthSales:0, todaySales:0, lastMonthSales:0, lastRent:0, sat:80, openedDay:0 });
+    units.push({ id:'GMS2', floor:2, side:'W', bld:'kaze', x0:-130, x1:-96, w:34, tier:'XL', kind:'gms', rowZ:0, ten:null, state:'open', fitDays:0, monthsBad:0, monthSales:0, todaySales:0, lastMonthSales:0, lastRent:0, sat:80, openedDay:0 });
+    units.push({ id:'CINE', floor:3, side:'W', bld:'kaze', x0:-130, x1:-96, w:34, tier:'XL', kind:'cinema', rowZ:0, ten:null, state:'vacant', fitDays:0, monthsBad:0, monthSales:0, todaySales:0, lastMonthSales:0, lastRent:0, sat:70, openedDay:0 });
+    // ===== outlet棟(平屋・複数アベニュー、フードコートなし) =====
+    const OT = BUILDINGS.outlet;
+    OT.rows.forEach((rz,i)=>{ this.buildRowUnits(units, 'outlet', 'OT', 1, rz, OT.rowLen, null, 0); });
+    // ===== mori棟(平屋・複数ウィング、3列目北側にフードコート) =====
+    const MR = BUILDINGS.mori;
+    MR.rows.forEach((rz,i)=>{ this.buildRowUnits(units, 'mori', 'MR', 1, rz, MR.rowLen, i===2?'N':null, MR.rowLen*0.55); });
     return units;
   },
 
@@ -59,7 +91,7 @@ const SIM = {
     const pool = TENANTS.slice();
     for (let i=pool.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
     const shopUnits = units.filter(u=>u.kind==='shop'||u.kind==='fc');
-    let placed = 0, target = 42;
+    let placed = 0, target = Math.min(pool.length-4, Math.round(shopUnits.length*0.44));
     for (const t of pool){
       if (placed>=target) break;
       const cands = shopUnits.filter(u=>!u.ten && this.unitFits(u,t));

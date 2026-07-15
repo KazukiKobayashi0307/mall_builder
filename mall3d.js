@@ -184,6 +184,9 @@ const M3D = {
     };
 
     this.buildStatic();
+    this.buildOutlet();
+    this.buildMori();
+    this.buildLakeAndBridges();
     this.buildAllUnits();
     this.buildOutside();
     this.initNPC();
@@ -488,6 +491,89 @@ const M3D = {
     this.plane(4.4,18, this.signMat('ユ\nメ\nモ\ー\nル','#ffffff','#8e2a6b',{fs:70,w:128,h:512}), 88, 12, -20.2, Math.PI, towerG);
   },
 
+  // ---------- outlet/mori棟(平屋の複数列構成) ----------
+  buildRowShell(g, B, rowLocalZ, label, accentHex){
+    const M=this.MAT;
+    const rz = B.originZ+rowLocalZ;
+    const cx = B.originX + B.rowLen/2;
+    this.box(B.rowLen, 0.4, 36, this.woodFloorMat(B.rowLen/8, 4.5), cx, -0.2, rz, g);
+    // 天井照明(インスタンス)
+    const lightPts=[]; for (let x=B.originX+6; x<=B.originX+B.rowLen-6; x+=12) lightPts.push(x);
+    const lights=new THREE.InstancedMesh(new THREE.PlaneGeometry(6,1.3), M.lightP, lightPts.length);
+    { const lm=new THREE.Matrix4(); lightPts.forEach((x,i)=>{ lm.makeRotationX(-Math.PI/2); lm.setPosition(x,5.55,rz); lights.setMatrixAt(i,lm); }); }
+    g.add(lights);
+    // 屋根+外壁
+    this.box(B.rowLen+1.6, 0.4, 37, M.roof, cx, 6.2, rz, g);
+    this.box(0.4,6,37, M.wall, B.originX, 3, rz, g);
+    this.box(0.4,6,37, M.wall, B.originX+B.rowLen, 3, rz, g);
+    this.box(B.rowLen+0.4,6,0.4, M.wall, cx, 3, rz-18, g);
+    this.box(B.rowLen+0.4,6,0.4, M.wall, cx, 3, rz+18, g);
+    // アクセント帯+サイン(両端)
+    this.box(B.rowLen+1.6,1.0,0.5, this.litMat(accentHex), cx, 6.6, rz-18.1, g);
+    this.box(B.rowLen+1.6,1.0,0.5, this.litMat(accentHex), cx, 6.6, rz+18.1, g);
+    this.plane(18,2.2, this.signMat(label, accentHex, '#ffffff', {fs:44,w:768,h:100}), cx, 4.9, rz-18.3, 0, g);
+    this.plane(18,2.2, this.signMat(label, accentHex, '#ffffff', {fs:44,w:768,h:100}), cx, 4.9, rz+18.3, Math.PI, g);
+    // 間仕切り(店舗境界の目安、インスタンス)
+    const seq = SIM.genSeq(B.rowLen);
+    const bounds=[B.originX]; { let bx=B.originX; for (const w of seq){ bx+=w; bounds.push(bx); } }
+    const parts=new THREE.InstancedMesh(new THREE.BoxGeometry(0.2,6,14), M.wallIn, bounds.length*2);
+    { const pm=new THREE.Matrix4(); let pi=0;
+      for (const zz of [rz+11, rz-11]) for (const b of bounds){ pm.makeTranslation(b, 3, zz); parts.setMatrixAt(pi++, pm); } }
+    g.add(parts);
+  },
+  buildOutlet(){
+    const B = BUILDINGS.outlet, g=this.gFloors[1];
+    B.rows.forEach(rz=>this.buildRowShell(g, B, rz, 'LakeTown OUTLET', '#1f8f6e'));
+    // 連絡通路(南北)を各端に
+    const zMin=B.originZ+Math.min(...B.rows)-18, zMax=B.originZ+Math.max(...B.rows)+18;
+    for (const cxOff of [B.rowLen*0.12, B.rowLen*0.88]){
+      const cx=B.originX+cxOff;
+      this.box(5.2,0.4,zMax-zMin, this.floorMat('#eef0ea','#c7ccc0',2,Math.round((zMax-zMin)/8)), cx, -0.2, (zMin+zMax)/2, g);
+      this.box(5.6,0.3,zMax-zMin, this.MAT.lightP, cx, 5.9, (zMin+zMax)/2, g);
+    }
+  },
+  buildMori(){
+    const B = BUILDINGS.mori, g=this.gFloors[1];
+    B.rows.forEach(rz=>this.buildRowShell(g, B, rz, 'mori', '#3f7a1f'));
+    const zMin=B.originZ+Math.min(...B.rows)-18, zMax=B.originZ+Math.max(...B.rows)+18;
+    for (const cxOff of [B.rowLen*0.12, B.rowLen*0.88]){
+      const cx=B.originX+cxOff;
+      this.box(5.2,0.4,zMax-zMin, this.floorMat('#eaf2e4','#c3d4b6',2,Math.round((zMax-zMin)/8)), cx, -0.2, (zMin+zMax)/2, g);
+      this.box(5.6,0.3,zMax-zMin, this.MAT.lightP, cx, 5.9, (zMin+zMax)/2, g);
+    }
+    // フォレストテーブル(mori北端のフードコート的休憩エリア)
+    const fcRow = B.rows[2], fz = B.originZ+fcRow;
+    const fcx = B.originX + B.rowLen*0.78;
+    this.plane(14,1.8, this.signMat('FOREST TABLE','#3f7a1f','#ffffff',{fs:40}), fcx, 5.2, fz+18.2, 0, g);
+    for (let i=0;i<4;i++){
+      const tx=fcx-9+i*6;
+      const tb=new THREE.Mesh(new THREE.CylinderGeometry(0.62,0.62,0.07,12), this.MAT.white);
+      tb.position.set(tx,0.78,fz+9); g.add(tb);
+      this.box(0.08,0.78,0.08, this.MAT.dark, tx, 0.39, fz+9, g);
+    }
+  },
+  buildLakeAndBridges(){
+    const M=this.MAT;
+    const lakeMat = new THREE.MeshLambertMaterial({ color:0x5aa0c8, transparent:true, opacity:0.92 });
+    const lake = new THREE.Mesh(new THREE.PlaneGeometry(440,180), lakeMat);
+    lake.rotation.x = -Math.PI/2;
+    lake.position.set(120, 0.02, -220);
+    this.scene.add(lake);
+    this.gLake = lake;
+    // 橋
+    for (const br of BRIDGES){
+      const dx=br.b.x-br.a.x, dz=br.b.z-br.a.z, len=Math.hypot(dx,dz), ang=Math.atan2(dx,dz);
+      const cx=(br.a.x+br.b.x)/2, cz=(br.a.z+br.b.z)/2;
+      const deck=this.box(br.w, 0.5, len, this.MAT.wood, cx, -0.15, cz, this.scene);
+      deck.rotation.y = ang;
+      for (const side of [-1,1]){
+        const rail=this.box(0.15, 1.1, len, this.MAT.railBar, cx+Math.cos(ang)*side*br.w/2, 0.55, cz-Math.sin(ang)*side*br.w/2, this.scene);
+        rail.rotation.y = ang;
+      }
+      const mid=this.plane(3,0.9, this.signMat(br.name,'#ffffff','#2a6ea8',{fs:36}), cx, 1.4, cz, ang, this.scene);
+    }
+  },
+
   buildOutside(){
     const M=this.MAT; const g=new THREE.Group(); this.gOutside=g; this.scene.add(g);
     const ground = this.box(760,0.2,560, M.grass, 0, -0.35, 0, g);
@@ -553,7 +639,20 @@ const M3D = {
 
   // ---------- 区画ビジュアル ----------
   buildAllUnits(){
-    for (const u of SIM.st.units) this.refreshUnit(u);
+    for (const u of SIM.st.units){
+      if (u.bld && u.bld!=='kaze' && (u.kind==='shop'||u.kind==='fc')) u._lod='far';
+      this.refreshUnit(u);
+    }
+  },
+  updateLOD(){
+    const cx=this.camera.position.x, cz=this.camera.position.z;
+    for (const u of SIM.st.units){
+      if (!u.bld || u.bld==='kaze' || (u.kind!=='shop'&&u.kind!=='fc')) continue;
+      const ux=(u.x0+u.x1)/2, uz=u.rowZ||0;
+      const d = Math.hypot(cx-ux, cz-uz);
+      const want = d<80 ? 'near' : 'far';
+      if (u._lod!==want){ u._lod=want; this.refreshUnit(u); }
+    }
   },
   refreshUnit(u){
     const old=this.unitGroups[u.id];
@@ -569,7 +668,7 @@ const M3D = {
     if (u.kind!=='ent'){
       const w = u.kind==='gms'||u.kind==='cinema' ? 34 : u.w;
       const cx = u.kind==='gms'||u.kind==='cinema' ? -113 : (u.x0+u.x1)/2;
-      const cz = u.kind==='gms'||u.kind==='cinema' ? 0 : (u.side==='N'? 11 : -11);
+      const cz = u.kind==='gms'||u.kind==='cinema' ? 0 : (u.rowZ||0) + (u.side==='N'? 11 : -11);
       const d = u.kind==='gms'||u.kind==='cinema' ? 36 : 14;
       const pm=new THREE.Mesh(new THREE.BoxGeometry(w, this.FH-0.5, d), new THREE.MeshBasicMaterial({visible:false}));
       pm.position.set(cx, y+this.FH/2, cz);
@@ -598,9 +697,26 @@ const M3D = {
     return pal[h % pal.length];
   },
 
-  buildShopUnit(u,g,y){
+  buildShopUnitSimple(u,g,y){
+    // LOD遠景版: 安価な看板ボックスのみ(店構えの作り込みは近くに寄った時だけ)
     const M=this.MAT;
-    const cx=(u.x0+u.x1)/2, front = u.side==='N'? 4 : -4, dirn = u.side==='N'? 1 : -1;
+    const rz=u.rowZ||0;
+    const cx=(u.x0+u.x1)/2, front = rz+(u.side==='N'? 4 : -4), dirn = u.side==='N'? 1 : -1;
+    const faceRy = u.side==='N'? Math.PI : 0;
+    if (u.state==='open' && u.ten){
+      const col = this.catColor(u.ten.cat);
+      this.box(u.w-0.3, 4.2, 0.2, this.litMat(col), cx, y+2.2, front+dirn*0.08, g);
+    } else if (u.state==='fitting'){
+      this.box(u.w-0.3, 4.2, 0.2, this.litMat(0xcfcac0), cx, y+2.2, front+dirn*0.08, g);
+    } else {
+      this.box(u.w-0.3, 4.2, 0.1, M.shutter, cx, y+2.2, front+dirn*0.08, g);
+    }
+  },
+  buildShopUnit(u,g,y){
+    if (u._lod==='far'){ this.buildShopUnitSimple(u,g,y); return; }
+    const M=this.MAT;
+    const rz=u.rowZ||0;
+    const cx=(u.x0+u.x1)/2, front = rz+(u.side==='N'? 4 : -4), dirn = u.side==='N'? 1 : -1;
     const faceRy = u.side==='N'? Math.PI : 0;
     if (u.state==='open' && u.ten){
       const t = u.ten;
@@ -973,7 +1089,7 @@ const M3D = {
 
   // ---------- 歩行 ----------
   walkableAt(x,z,f){
-    // 通路
+    // 通路(kaze棟)
     if (x>=-95.5 && x<=95.5 && Math.abs(z)<3.9){
       if (this.holesAt(f,x,z)) return this.rampAt(x,z)!==null;
       return true;
@@ -988,13 +1104,36 @@ const M3D = {
       return x<=-100; // シネマロビー
     }
     if (x>=-96.6 && x<=-95.5 && Math.abs(z)<3.5) return true; // GMS入口
+    if (f===1){
+      // outlet/mori棟の通路列+連絡通路
+      for (const bldKey of ['outlet','mori']){
+        const B = BUILDINGS[bldKey];
+        for (const rz0 of B.rows){
+          const rz = B.originZ+rz0;
+          if (x>=B.originX-1 && x<=B.originX+B.rowLen+1 && Math.abs(z-rz)<3.9) return true;
+        }
+        const zMin = B.originZ+Math.min(...B.rows)-4, zMax = B.originZ+Math.max(...B.rows)+4;
+        for (const cxOff of [B.rowLen*0.12, B.rowLen*0.88]){
+          const cx = B.originX+cxOff;
+          if (Math.abs(x-cx)<2.6 && z>=zMin && z<=zMax) return true;
+        }
+      }
+      // 橋
+      for (const br of BRIDGES){
+        const dx=br.b.x-br.a.x, dz=br.b.z-br.a.z, len=Math.hypot(dx,dz);
+        const ux=dx/len, uz=dz/len;
+        const px=x-br.a.x, pz=z-br.a.z;
+        const along = px*ux+pz*uz, perp = px*-uz+pz*ux;
+        if (along>=-1 && along<=len+1 && Math.abs(perp)<br.w/2) return true;
+      }
+    }
     // 店内
     for (const u of SIM.st.units){
       if (u.floor!==f) continue;
       if (u.kind==='gms'||u.kind==='cinema') continue;
       if (x<u.x0+0.35 || x>u.x1-0.35) continue;
       const dirn = u.side==='N'?1:-1;
-      const zi = z*dirn;
+      const zi = (z-(u.rowZ||0))*dirn;
       if (u.kind==='ent'){
         if (zi>=3.9 && zi<=17.9) return true;
         continue;
@@ -1040,7 +1179,7 @@ const M3D = {
     for (const u of SIM.st.units){
       if (u.floor!==p.f || !u.ten || u.state!=='open') continue;
       const cx = u.kind==='gms'||u.kind==='cinema' ? -100 : (u.x0+u.x1)/2;
-      const cz = u.kind==='gms'||u.kind==='cinema' ? 0 : (u.side==='N'?4:-4);
+      const cz = u.kind==='gms'||u.kind==='cinema' ? 0 : (u.rowZ||0)+(u.side==='N'?4:-4);
       const d=Math.hypot(p.x-cx, p.z-cz);
       if (d<bd){ bd=d; best=u; }
     }
@@ -1322,6 +1461,7 @@ const M3D = {
       this.escTexUp.offset.y -= sd*0.5;
       this.escTexDown.offset.y += sd*0.5;
       if ((this._crowdT=(this._crowdT||0)+dt) > 2){ this._crowdT=0; this.setCrowdVisual(); }
+      if ((this._lodT=(this._lodT||0)+dt) > 0.8){ this._lodT=0; this.updateLOD(); }
       UI.tickHUD();
       this.renderer.render(this.scene, this.camera);
     };

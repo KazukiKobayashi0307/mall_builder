@@ -174,7 +174,7 @@ const TENANTS = [
   for (const cat in NAME_PARTS){
     const parts = NAME_PARTS[cat], stat = BASE_STAT[cat], facades = FACADE_POOL[cat];
     const combos = parts.pre.length*parts.suf.length;
-    const target = (cat==='gms_food'||cat==='gms_living') ? 6 : 45;
+    const target = (cat==='gms_food'||cat==='gms_living') ? 10 : 95;
     for (let i=0;i<target;i++){
       const idx = (gi*97 + i*13) % combos;
       const pi = Math.floor(idx/parts.suf.length), si = idx%parts.suf.length;
@@ -229,30 +229,30 @@ const GMS_FLOORS = [
 const SITES = [
   { id:'station', name:'中央駅前地区',
     desc:'最寄駅から徒歩3分の再開発区画。電車で来る客が多く天候に左右されにくいが、地価が高く駐車場は手狭。競合の大型商業施設も近い。',
-    stationWalkMin:3, parkingCap:1400, cashStart:18000, loanStart:1400000, catchmentMul:1.15, competitionLevel:3, expansion:false,
+    stationWalkMin:3, parkingCap:6500, cashStart:75000, loanStart:6200000, catchmentMul:1.15, competitionLevel:3, expansion:false,
     demoSkew:{ kids_family:0.7, young_female:1.6, young_male:1.5, adult_female:1.2, adult_male:1.2, senior:0.8 } },
   { id:'suburb', name:'郊外バイパス沿い',
     desc:'幹線道路沿いの広大な土地。建築費が安く駐車場も大きく取れるが、最寄駅から遠く集客は車利用にほぼ依存する。',
-    stationWalkMin:25, parkingCap:5200, cashStart:34000, loanStart:1000000, catchmentMul:1.00, competitionLevel:1, expansion:true,
+    stationWalkMin:25, parkingCap:22000, cashStart:145000, loanStart:4400000, catchmentMul:1.00, competitionLevel:1, expansion:true,
     demoSkew:{ kids_family:1.6, young_female:0.9, young_male:0.9, adult_female:1.1, adult_male:1.0, senior:1.2 } },
   { id:'newtown', name:'ニュータウン中央地区',
     desc:'計画的に開発された住宅街の中心部。ファミリー層が厚く周辺の競合も少ない、伸び代のあるバランス型の立地。',
-    stationWalkMin:12, parkingCap:3400, cashStart:26000, loanStart:1100000, catchmentMul:0.92, competitionLevel:1, expansion:true,
+    stationWalkMin:12, parkingCap:14000, cashStart:110000, loanStart:4800000, catchmentMul:0.92, competitionLevel:1, expansion:true,
     demoSkew:{ kids_family:1.4, young_female:1.0, young_male:0.9, adult_female:1.2, adult_male:1.0, senior:1.3 } },
   { id:'redev', name:'工業跡地再開発区',
     desc:'旧工業団地の再開発地。地価が安く敷地も広いが、まだ知名度がなく商圏の質もこれから。うまく育てば化ける立地。',
-    stationWalkMin:18, parkingCap:4200, cashStart:30000, loanStart:900000,  catchmentMul:0.85, competitionLevel:2, expansion:true,
+    stationWalkMin:18, parkingCap:17500, cashStart:125000, loanStart:3900000,  catchmentMul:0.85, competitionLevel:2, expansion:true,
     demoSkew:{ kids_family:1.1, young_female:1.0, young_male:1.1, adult_female:1.0, adult_male:1.1, senior:1.1 } },
 ];
 
 // ============ 催事イベント ============
 const EVENTS = [
-  { id:'hokkaido', name:'北海道物産展',        cost:900,  days:7, mul:1.22, desc:'海鮮・スイーツの鉄板催事。1週間来館+22%' },
-  { id:'gourmetfes',name:'ご当地グルメ祭',     cost:700,  days:5, mul:1.18, desc:'全国のB級グルメ集結。5日間来館+18%' },
-  { id:'heroshow', name:'キッズヒーローショー', cost:450,  days:2, mul:1.45, desc:'週末セントラルコートが家族で埋まる。2日間+45%' },
-  { id:'yurufes',  name:'ゆるキャラまつり',    cost:350,  days:2, mul:1.30, desc:'県内ゆるキャラ大集合。2日間+30%' },
-  { id:'idolevent',name:'ご当地アイドルLIVE',  cost:600,  days:1, mul:1.85, desc:'1日限りの爆発力。転売対策はしっかり。' },
-  { id:'kimonofair',name:'新春きもの初売り市', cost:500,  days:4, mul:1.15, desc:'落ち着いた集客と高単価。4日間+15%' },
+  { id:'hokkaido', name:'北海道物産展',        cost:4500,  days:7, mul:1.22, desc:'海鮮・スイーツの鉄板催事。1週間来館+22%' },
+  { id:'gourmetfes',name:'ご当地グルメ祭',     cost:3500,  days:5, mul:1.18, desc:'全国のB級グルメ集結。5日間来館+18%' },
+  { id:'heroshow', name:'キッズヒーローショー', cost:2200,  days:2, mul:1.45, desc:'週末セントラルコートが家族で埋まる。2日間+45%' },
+  { id:'yurufes',  name:'ゆるキャラまつり',    cost:1800,  days:2, mul:1.30, desc:'県内ゆるキャラ大集合。2日間+30%' },
+  { id:'idolevent',name:'ご当地アイドルLIVE',  cost:3000,  days:1, mul:1.85, desc:'1日限りの爆発力。転売対策はしっかり。' },
+  { id:'kimonofair',name:'新春きもの初売り市', cost:2500,  days:4, mul:1.15, desc:'落ち着いた集客と高単価。4日間+15%' },
 ];
 
 // 天候・季節
@@ -266,18 +266,18 @@ const MONTH_MUL = [1.22, 0.90, 1.08, 1.00, 1.05, 0.92, 1.12, 1.18, 0.98, 1.02, 1
 
 // 経済定数
 const ECON = {
-  BASE_VISITORS: 1500,     // 最低来館ベース
-  ATTRACT_COEF: 95,        // 集客力→来館係数
-  ATTRACT_POW: 0.85,       // 逓減
+  BASE_VISITORS: 4500,     // 最低来館ベース(レイクタウン級複合施設)
+  ATTRACT_COEF: 210,       // 集客力→来館係数
+  ATTRACT_POW: 0.78,       // 逓減(区画数が桁違いに多いため強めに逓減)
   SAT_MUL: 1.90, SUN_MUL: 2.05, // 土日係数
   KANSHA_MUL: 1.32,        // 感謝デー(20/30日)
   OPEN_BOOST: [2.0, 1.7, 1.45], // グランドオープン3日間
-  VACANCY_PENALTY: 0.45,   // 空床1区画あたり集客減点
-  COMMON_COST_MONTH: 4200, // 共用部管理費(万円/月)
-  LOAN_INIT: 1200000,      // 借入残(万円・立地未選択時フォールバック)
-  LOAN_PAY_MONTH: 5000,    // 元本返済(万円/月)
+  VACANCY_PENALTY: 0.07,   // 空床1区画あたり集客減点(区画数が多いため小さめ)
+  COMMON_COST_MONTH: 22000,// 共用部管理費(万円/月)
+  LOAN_INIT: 4800000,      // 借入残(万円・立地未選択時フォールバック)
+  LOAN_PAY_MONTH: 22000,   // 元本返済(万円/月)
   LOAN_RATE_Y: 0.021,      // 年利
-  CASH_INIT: 32000,        // 初期資金フォールバック
+  CASH_INIT: 110000,       // 初期資金フォールバック
   RENT_CAL: 0.8,           // 実勢賃料係数(カタログ値×これ)
   FIT_DAYS: 14,            // 内装工事日数
   PROPERTY_TAX_Y: 0.007,   // 固定資産税・都市計画税(年率、投下資本ベースの簡易モデル)
@@ -286,10 +286,27 @@ const ECON = {
   PARKING_PER_SPACE: 4.5,  // 駐車場1台あたりが1日に支えられる来館者数の目安(回転率込み)
   STATION_MUL_BASE: 1.30, STATION_MUL_PER_MIN: 0.022, STATION_MUL_MIN: 0.72, // 駅距離→来館係数
   COMPETITION_MUL: 0.055,  // 競合レベル1につき来館-5.5%
-  EXPANSION_COST: 9000,    // 増築投資(万円、expansion:trueの立地のみ)
-  EXPANSION_ATTRACT_BONUS: 7, // 増築後の集客力ボーナス
-  PROMO_LEVELS: [ {c:0,m:1.0,label:'なし'}, {c:400,m:1.05,label:'チラシ'}, {c:1000,m:1.11,label:'TVCM'}, {c:2200,m:1.18,label:'大型キャンペーン'} ],
+  EXPANSION_COST: 45000,   // 増築投資(万円、expansion:trueの立地のみ)
+  EXPANSION_ATTRACT_BONUS: 35, // 増築後の集客力ボーナス
+  PROMO_LEVELS: [ {c:0,m:1.0,label:'なし'}, {c:2000,m:1.05,label:'チラシ'}, {c:5000,m:1.11,label:'TVCM'}, {c:11000,m:1.18,label:'大型キャンペーン'} ],
 };
 
 const MALL_NAME = 'ユメモール';
-const SAVE_KEY = 'yumemall_save_v1';
+const SAVE_KEY = 'yumemall_save_v2';
+
+// ============ 複数棟コンプレックス構成(レイクタウン級の大規模化) ============
+// kaze棟は既存の単一корриドー建物(原点中心)。outlet/mori棟を新設し橋で接続する。
+const UNIT_PATTERN = [12,8,8,20,8,12,8,20,8,8,12,8,20,12,8,12];
+const BUILDINGS = {
+  kaze:   { label:'kaze棟',   originX:0,    originZ:0,   color:'#2a6ea8' },
+  outlet: { label:'LakeTown OUTLET棟', originX:-360, originZ:-220,
+            rows:[-80,-40,0,40,80], rowLen:260, floors:[1], color:'#1f8f6e' },
+  mori:   { label:'mori棟',   originX:340,  originZ:-260,
+            rows:[-100,-60,-20,20,60,100], rowLen:260, floors:[1], color:'#5a8f2a' },
+};
+// 橋(2点間を結ぶ歩行可能な直線通路)
+const BRIDGES = [
+  { id:'lakeside', name:'レイクサイドブリッジ', a:{x:-100,z:-140}, b:{x:-130,z:-9},  w:6 },
+  { id:'center',   name:'センターブリッジ',     a:{x:104,z:0},     b:{x:340,z:-160}, w:6 },
+  { id:'forest',   name:'フォレストブリッジ',   a:{x:-100,z:-160}, b:{x:340,z:-260}, w:6 },
+];
