@@ -215,10 +215,14 @@ const M3D = {
     if (f===3) return (x>-22&&x<22)||(x>26&&x<38);
     return false;
   },
-  rampAt(x,z){
+  rampAt(x,z,curF){
     for (const k of ['W','E']){
       const e = this.ESC[k];
-      if (x>=e.x0-0.3 && x<=e.x1+0.3 && Math.abs(Math.abs(z)-1.7)<1.0){
+      // 現在いる階と無関係なエスカレーター(例:1F歩行中の2-3Fエスカレーター直下)は無視する
+      // これを怠ると、平らな通路を歩いているだけなのに別の階のエスカレーター判定に捕まり
+      // 意味不明な位置で上の階へワープしてしまうバグになる
+      if (curF!==undefined && curF!==e.fLow && curF!==e.fLow+1) continue;
+      if (x>=e.x0-0.3 && x<=e.x1+0.3 && Math.abs(Math.abs(z)-1.7)<0.85){
         const t = THREE.MathUtils.clamp((x-e.x0)/(e.x1-e.x0),0,1);
         return (e.fLow-1)*6 + t*6;
       }
@@ -735,9 +739,25 @@ const M3D = {
     drug:     ['#d81b6b','#e0207a','#c9155e','#e8407f'],
   },
   tenantAccent(t, facade){
+    const ov = this.TENANT_ACCENT_OVERRIDE[t.id];
+    if (ov) return ov;
     const pal = this.FACADE_PALETTES[facade] || this.FACADE_PALETTES.plain;
     const h = hashStr((t.tid||t.fid||t.name||'x')+(facade||''));
     return pal[h % pal.length];
+  },
+  // 実店舗を参考にした看板色・アクセント色の固定指定(旗艦テナントのみ。他は自動配色)
+  TENANT_ACCENT_OVERRIDE: {
+    uniwear:'#e0202a', mujirushi:'#a08a6a', daiko:'#e6002d', starpacks:'#00704a',
+    sushiroad:'#1a4fb0', joyama:'#ffcc00', abz:'#1c1c1c',
+  },
+  TENANT_SIGN_OVERRIDE: {
+    uniwear:{bg:'#e0202a', fg:'#ffffff'}, mujirushi:{bg:'#f2ede1', fg:'#4a4438'},
+    daiko:{bg:'#e6002d', fg:'#ffe600'}, starpacks:{bg:'#00704a', fg:'#ffffff'},
+    sushiroad:{bg:'#1a4fb0', fg:'#ffffff'}, joyama:{bg:'#ffcc00', fg:'#c00020'},
+  },
+  signColors(t, defBg, defFg){
+    const ov = this.TENANT_SIGN_OVERRIDE[t.id];
+    return ov ? [ov.bg, ov.fg] : [defBg, defFg];
   },
 
   buildShopUnitSimple(u,g,y){
@@ -769,6 +789,8 @@ const M3D = {
       const ctx = { u,g,y,cx,front,dirn,faceRy,col,accent,t,M };
       const fn = this.FACADE_BUILDERS[facade] || this.FACADE_BUILDERS.plain;
       fn.call(this, ctx);
+      const sig = this.TENANT_SIGNATURE[t.id];
+      if (sig) sig.call(this, ctx);
       if (u.kind==='fc'){
         this.box(u.w-1.2, 1.05, 1.3, M.white, cx, y+0.53, front+dirn*1.4, g);
         this.plane(u.w-1.5, 0.8, this.signMat('MENU','#333333','#ffffff',{fs:40}), cx, y+3.3, front+dirn*1.2, faceRy, g);
@@ -849,7 +871,8 @@ const M3D = {
     // モダンガラス張り(生活雑貨・靴・大型店)
     glass(ctx){
       const { u,g,y,cx,front,dirn,faceRy,col,accent,t,M } = ctx;
-      this.plane(u.w-0.7, 1.15, this.signMat(t.name, col, '#ffffff', {fs:56}), cx, y+4.7, front+dirn*0.03, faceRy, g);
+      const [sBg,sFg] = this.signColors(t, col, '#ffffff');
+      this.plane(u.w-0.7, 1.15, this.signMat(t.name, sBg, sFg, {fs:56}), cx, y+4.7, front+dirn*0.03, faceRy, g);
       this.box(u.w-0.4, 0.14, 0.3, this.litMat(accent), cx, y+4.05, front+dirn*0.1, g);
       this.box(u.w-0.5, 3.9, 0.06, M.glass, cx, y+1.95, front+dirn*0.06, g);
       this.box(0.12, 3.9, 0.12, this.litMat(accent), u.x0+0.3, y+1.95, front+dirn*0.08, g);
@@ -860,7 +883,8 @@ const M3D = {
     bold(ctx){
       const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
       this.box(u.w-0.3, 1.5, 0.28, this.litMat(accent), cx, y+3.95, front+dirn*0.08, g);
-      this.plane(u.w-0.8, 1.05, this.signMat(t.name, accent, '#ffffff', {fs:54}), cx, y+3.95, front+dirn*0.23, faceRy, g);
+      const [sBg,sFg] = this.signColors(t, accent, '#ffffff');
+      this.plane(u.w-0.8, 1.05, this.signMat(t.name, sBg, sFg, {fs:54}), cx, y+3.95, front+dirn*0.23, faceRy, g);
       this.box(u.w*0.5, 0.35, 0.3, M.white, u.x0+u.w*0.27, y+3.15, front+dirn*0.1, g).rotation.z = dirn*0.12;
       this.storeGlass(ctx);
       this.storeInterior(ctx, 0.65, 'gondola');
@@ -885,7 +909,8 @@ const M3D = {
       const { u,g,y,cx,front,dirn,faceRy,accent,t,M } = ctx;
       const awn = this.box(u.w-0.2, 0.12, 1.4, this.litMat(accent), cx, y+3.55, front+dirn*0.8, g);
       awn.rotation.x = dirn>0 ? -0.28 : 0.28;
-      this.plane(u.w-1.2, 0.85, this.signMat(t.name, accent, '#fff7ea', {fs:42}), cx, y+4.05, front+dirn*0.05, faceRy, g);
+      { const [sBg,sFg] = this.signColors(t, accent, '#fff7ea');
+        this.plane(u.w-1.2, 0.85, this.signMat(t.name, sBg, sFg, {fs:42}), cx, y+4.05, front+dirn*0.05, faceRy, g); }
       this.storeGlass(ctx, u.w*0.34);
       // 屋外の小さな丸テーブル
       const tb = new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.42,0.06,12), M.white);
@@ -1013,6 +1038,80 @@ const M3D = {
     },
   },
 
+  // ---- 実店舗を参考にした旗艦テナント専用の追加ディテール(FACADE_BUILDERSの上に追加描画) ----
+  TENANT_SIGNATURE: {
+    // ユニウェア(ユニクロ参考): 赤い正方形ロゴプレート+畳んだ服のディスプレイ台
+    uniwear(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,M } = ctx;
+      const logoMat = this.signMat('UW', '#e0202a', '#ffffff', {fs:70, w:160, h:160});
+      this.plane(1.1,1.1, logoMat, u.x0+1.0, y+2.55, front+dirn*0.02, faceRy, g);
+      const stackCols=['#e0202a','#2a4a7a','#e8e0d0','#3a3a3a','#c9a24a'];
+      for (let i=0;i<5;i++){
+        const sx = u.x0+2.2+i*(u.w-4.4)/4;
+        const stackH = 0.18+((i*37)%3)*0.09;
+        this.box(0.55,stackH,0.42, this.litMat(stackCols[i%stackCols.length]), sx, y+0.62+stackH/2, front+dirn*5.2, g);
+      }
+      this.box(u.w-2.6, 0.06, 0.6, M.white, cx, y+0.62, front+dirn*5.2, g);
+    },
+    // シンプル良品(無印良品参考): ノーブランド調のクラフト色什器
+    mujirushi(ctx){
+      const { u,g,y,cx,front,dirn } = ctx;
+      const woodMat=this.litMat('#c9a876');
+      this.box(u.w-2.6,0.7,0.5, woodMat, cx, y+0.55, front+dirn*4.6, g);
+      const kraftCols=['#e8dcc4','#d8c9a8','#c4b088'];
+      for (let i=0;i<4;i++){
+        const sx=u.x0+2.0+i*(u.w-4.0)/3;
+        this.box(0.5,0.4,0.35, this.litMat(kraftCols[i%kraftCols.length]), sx, y+1.1, front+dirn*4.6, g);
+      }
+    },
+    // ダイコー100円プラザ(ダイソー参考): 賑やかな価格訴求POP
+    daiko(ctx){
+      const { u,g,y,cx,front,dirn,faceRy } = ctx;
+      const tagMat = this.signMat('100円', '#ffe600', '#e6002d', {fs:46, w:180, h:180});
+      for (const [ox,oy,rot] of [[-0.36,0.15,0.15],[0.30,-0.05,-0.12]]){
+        const p=this.plane(0.9,0.9, tagMat, cx+u.w*ox, y+3.15+oy, front+dirn*0.28, faceRy, g);
+        p.rotation.z = rot;
+      }
+    },
+    // スターパックスコーヒー(スターバックス参考): 丸いエンブレム
+    starpacks(ctx){
+      const { u,g,y,cx,front,dirn } = ctx;
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,0.06,24), this.litMat('#00704a'));
+      disc.rotation.x=Math.PI/2; disc.position.set(cx, y+3.35, front+dirn*0.32); g.add(disc);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42,0.05,8,24), this.litMat('#ffffff'));
+      ring.rotation.x=Math.PI/2; ring.position.set(cx, y+3.35, front+dirn*0.36); g.add(ring);
+    },
+    // 回転寿司スシロード(スシロー参考): バックライト寿司メニューボード+レーン風の小皿ディスプレイ
+    sushiroad(ctx){
+      const { u,g,y,cx,front,dirn,faceRy,t,M } = ctx;
+      const menuMat = new THREE.MeshBasicMaterial({ map: this.menuBoardTex(t.name, '#1a4fb0') });
+      const menuW = Math.min(u.w-1.6, 4.2), menuH = menuW*0.53;
+      this.plane(menuW, menuH, menuMat, cx, y+3.5, front+dirn*0.12, faceRy, g);
+      const plateMat = this.litMat('#ffffff');
+      const nigiriCols=['#e0a24a','#c9573a','#e8e0d0'];
+      for (let i=0;i<6;i++){
+        const sx = u.x0+1.2+i*(u.w-2.4)/5;
+        const plate=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,0.03,12), plateMat);
+        plate.position.set(sx, y+1.05, front+dirn*2.0); g.add(plate);
+        const nigiri=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.06,0.2), this.litMat(nigiriCols[i%nigiriCols.length]));
+        nigiri.position.set(sx, y+1.1, front+dirn*2.0); g.add(nigiri);
+      }
+      this.box(u.w-2.0,1.0,0.05, M.glass, cx, y+1.3, front+dirn*2.3, g);
+    },
+    // デンキのジョーヤマ(家電量販店参考): テレビ壁+特価POP
+    joyama(ctx){
+      const { u,g,y,cx,front,dirn,faceRy } = ctx;
+      const screenMat = this.basicMat('#4ac9e0');
+      for (let r=0;r<2;r++) for (let ci=0;ci<4;ci++){
+        const sx = u.x0+1.6+ci*(u.w-3.2)/3;
+        this.plane(0.85,0.5, screenMat, sx, y+1.6+r*0.7, front+dirn*11.5, faceRy+Math.PI, g);
+      }
+      const tagMat = this.signMat('特価', '#c00020', '#ffcc00', {fs:44, w:160, h:160});
+      const p=this.plane(0.8,0.8, tagMat, u.x1-1.1, y+3.3, front+dirn*0.3, faceRy, g);
+      p.rotation.z=-0.15;
+    },
+  },
+
   buildEntranceUnit(u,g,y){
     const M=this.MAT, dirn = u.side==='N'? 1 : -1;
     const cx=(u.x0+u.x1)/2;
@@ -1092,12 +1191,20 @@ const M3D = {
   },
 
   // ---------- モード切替 ----------
-  enterWalk(){
+  SPAWN_POINTS: {
+    kaze_1: { label:'kaze棟 1F・正面エントランス', x:93,  z:0,    f:1, yaw:Math.PI/2 },
+    kaze_2: { label:'kaze棟 2F・西通路',           x:60,  z:0,    f:2, yaw:Math.PI/2 },
+    kaze_3: { label:'kaze棟 3F・フードコート前',   x:40,  z:0,    f:3, yaw:-Math.PI/2 },
+    outlet_1: { label:'LakeTown OUTLET棟 1F・中央通路', x:-355, z:-220, f:1, yaw:-Math.PI/2 },
+    mori_1:   { label:'mori棟 1F・中央通路',            x:345,  z:-160, f:1, yaw:-Math.PI/2 },
+  },
+  enterWalk(spawnKey){
     this.mode='walk';
     this.orbit.enabled=false;
     this.setFloorView(0);
+    const sp = this.SPAWN_POINTS[spawnKey] || this.SPAWN_POINTS.kaze_1;
     const p=this.player;
-    p.x=93; p.z=0; p.f=1; p.y=0; p.yaw=Math.PI/2; p.pitch=-0.02;
+    p.x=sp.x; p.z=sp.z; p.f=sp.f; p.y=(sp.f-1)*this.FH; p.yaw=sp.yaw; p.pitch=-0.02;
   },
   exitWalk(){
     this.mode='orbit';
@@ -1187,7 +1294,7 @@ const M3D = {
     const CF=this.CORR_FRONT;
     // 通路(kaze棟)
     if (x>=-95.5 && x<=95.5 && Math.abs(z)<CF-0.1){
-      if (this.holesAt(f,x,z)) return this.rampAt(x,z)!==null;
+      if (this.holesAt(f,x,z)) return this.rampAt(x,z,f)!==null;
       return true;
     }
     // 側道ストリップ上(通路内含む)
@@ -1263,7 +1370,7 @@ const M3D = {
       else if (this.walkableAt(p.x,nz,p.f)) p.z=nz;
     }
     // 高さ&フロア
-    const ry=this.rampAt(p.x,p.z);
+    const ry=this.rampAt(p.x,p.z,p.f);
     const targetY = ry!==null? ry : (p.f-1)*6;
     p.y += (targetY-p.y)*Math.min(1, dt*10);
     if (ry!==null) p.f = p.y<3?1:(p.y<9?2:3);
@@ -1566,7 +1673,7 @@ const M3D = {
       }
       const sp=n.speed*(st.speed===0?0:1);
       n.x+=dx/d*sp*dt; n.z+=dz/d*sp*dt;
-      const ry=this.rampAt(n.x,n.z);
+      const ry=this.rampAt(n.x,n.z,n.f);
       const ty = ry!==null? ry : (n.f-1)*6;
       n.y += (ty-n.y)*Math.min(1,dt*8);
       n.grp.position.set(n.x, n.y, n.z);

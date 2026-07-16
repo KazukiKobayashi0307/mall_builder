@@ -73,16 +73,37 @@ const UI = {
 
   toggleWalk(){
     if (M3D.mode==='orbit'){
-      M3D.enterWalk();
-      document.body.classList.add('walk');
-      this.closePanel();
-      this.el('btnWalk').textContent='📊 経営モードへ';
+      this.openSpawnPicker();
     } else {
       M3D.exitWalk();
       document.body.classList.remove('walk');
       this.setNearLabel(null);
       this.el('btnWalk').textContent='🚶 歩く';
     }
+  },
+
+  openSpawnPicker(){
+    const groups = { 'kaze棟':['kaze_1','kaze_2','kaze_3'], 'LakeTown OUTLET棟':['outlet_1'], 'mori棟':['mori_1'] };
+    let html='';
+    for (const [bldLabel, keys] of Object.entries(groups)){
+      html += `<div class="spawnBldLabel">${bldLabel}</div>`;
+      for (const key of keys){
+        const sp = M3D.SPAWN_POINTS[key];
+        const fl = sp.label.split('・')[1] || '';
+        html += `<button class="spawnBtn" data-spawn="${key}"><span>${fl}</span><span class="fl">${sp.f}F</span></button>`;
+      }
+    }
+    this.el('spawnBody').innerHTML = html;
+    this.el('spawnBody').querySelectorAll('[data-spawn]').forEach(b=>{
+      b.onclick = ()=>{
+        M3D.enterWalk(b.dataset.spawn);
+        document.body.classList.add('walk');
+        this.closePanel();
+        this.el('btnWalk').textContent='📊 経営モードへ';
+        this.el('spawnModal').style.display='none';
+      };
+    });
+    this.el('spawnModal').style.display='flex';
   },
 
   switchTab(tab){

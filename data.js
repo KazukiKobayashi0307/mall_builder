@@ -93,7 +93,7 @@ const TENANTS = [
   // --- レストラン ---
   { id:'saizeru',  name:'ミラノ食堂サイゼール',   cat:'gourmet', size:'M', attract:6, rate:0.10, minRent:190, pull:2.2, facade:'noren', demo:'family', desc:'驚異の低価格イタリアン。ファミリーの味方。' },
   { id:'gusto',    name:'ファミリー食堂グスト',   cat:'gourmet', size:'M', attract:5, rate:0.10, minRent:180, pull:1.7, facade:'noren', demo:'family', desc:'何でも揃うファミレスの雄。' },
-  { id:'sushiroad',name:'回転寿司スシロード',     cat:'gourmet', size:'L', attract:7, rate:0.10, minRent:290, pull:2.8, facade:'noren', demo:'family', desc:'週末は2時間待ちの回転寿司。' },
+  { id:'sushiroad',name:'回転寿司スシロード',     cat:'gourmet', size:'L', attract:7, rate:0.10, minRent:290, pull:2.8, facade:'glass', demo:'family', desc:'週末は2時間待ちの回転寿司。' },
   { id:'daishogun',name:'焼肉大将軍',            cat:'gourmet', size:'L', attract:5, rate:0.11, minRent:260, pull:1.7, facade:'noren', demo:'adult_male', desc:'食べ放題焼肉。夜の売上が厚い。' },
   { id:'wakotei',  name:'とんかつ和光亭',        cat:'gourmet', size:'M', attract:4, rate:0.10, minRent:165, pull:1.2, facade:'noren', demo:'adult_male', desc:'キャベツおかわり自由の老舗とんかつ。' },
   { id:'ooedoya',  name:'大江戸屋ごはん処',      cat:'gourmet', size:'M', attract:4, rate:0.10, minRent:160, pull:1.2, facade:'noren', demo:'senior', desc:'定食と土鍋ごはん。健康志向に人気。' },

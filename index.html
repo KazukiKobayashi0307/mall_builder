@@ -121,6 +121,11 @@ body.walk #tabs{ display:none; }
 .trow b{ color:var(--tx); }
 .btn{ display:block; width:100%; margin-top:8px; background:var(--accent); color:#fff; border:none; border-radius:9px; padding:9px; font-size:13px; font-weight:700; cursor:pointer; }
 .btn.danger{ background:rgba(255,80,95,.16); color:var(--neg); border:1px solid rgba(255,80,95,.4); }
+.spawnBldLabel{ font-size:12px; color:var(--tx2); font-weight:700; margin:12px 0 4px; }
+.spawnBldLabel:first-child{ margin-top:0; }
+.spawnBtn{ display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:6px; background:rgba(255,255,255,.06); color:var(--tx); border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:10px 12px; font-size:13px; cursor:pointer; text-align:left; }
+.spawnBtn:active{ background:var(--accent); border-color:var(--accent); }
+.spawnBtn .fl{ color:var(--tx2); font-size:11px; }
 .warn{ background:rgba(255,150,60,.12); border-radius:8px; color:#ffb36b; font-size:12px; padding:7px 9px; margin-top:7px; line-height:1.6; }
 .seg{ display:flex; background:rgba(255,255,255,.07); border-radius:10px; padding:3px; margin-bottom:10px; }
 .seg button{ flex:1; background:none; border:none; color:var(--tx2); padding:8px; border-radius:8px; font-size:13px; cursor:pointer; }
@@ -226,6 +231,13 @@ body.walk #walkHint{ display:block; }
     <h3>💸 経営破綻…</h3>
     <div class="trow" style="line-height:2">資金がマイナス2億円に達し、ユメモールは銀行管理となりました。<br>設定タブから再挑戦できます。</div>
     <button class="mclose" data-close>閉じる</button>
+  </div>
+</div>
+<div class="modal-wrap" id="spawnModal" style="display:none">
+  <div class="modal">
+    <h3>🚶 どこから歩き始めますか？</h3>
+    <div id="spawnBody"></div>
+    <button class="mclose" data-close>キャンセル</button>
   </div>
 </div>
 
